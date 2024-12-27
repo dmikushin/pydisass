@@ -84,7 +84,11 @@ extern "C"
 } // extern "C"
 
 #include "streamprintf.h"
+
+#include <iostream>
 #include <sstream>
+#include <string>
+#include <nlohmann/json.hpp>
 
 static std::stringstream ssdisass;
 
@@ -3885,8 +3889,52 @@ public:
 
 static Disassembler d;
 
-std::string disass(const char* filename, const char* mcpu)
-{
-  return d.run(filename, mcpu);
+nlohmann::json disass(const char* filename, const char* mcpu, int offset) {
+    nlohmann::json instructions;
+    std::istringstream stream(d.run(filename, mcpu));
+    std::string line;
+
+    while (std::getline(stream, line)) {
+        if (line.empty() || line[0] != ' ') continue;
+
+        std::istringstream lineStream(line);
+        std::string addressStr, binary, mnemonic, op_str;
+        lineStream >> addressStr >> binary >> mnemonic;
+        std::getline(lineStream, op_str);
+        op_str = op_str.empty() ? "" : op_str.substr(1); // Remove leading tab
+
+        // Check if op_str ends with '@ constant'
+        std::string constant;
+        size_t atPos = op_str.find_last_of('@');
+        if (atPos != std::string::npos) {
+            constant = op_str.substr(atPos + 1);
+            op_str = op_str.substr(0, atPos - 1); // Remove '@ constant'
+        }
+
+        int address = std::stoi(addressStr, nullptr, 16) + offset;
+        int size = binary.length() / 2;
+
+        if (constant == "")
+        {
+		    instructions[std::to_string(address)] = {
+		        {"binary", binary},
+		        {"mnemonic", mnemonic},
+		        {"op_str", op_str},
+		        {"size", size}
+		    };
+		}
+		else
+        {
+		    instructions[std::to_string(address)] = {
+		        {"binary", binary},
+		        {"mnemonic", mnemonic},
+		        {"op_str", op_str},
+		        {"constant", constant},
+		        {"size", size},
+		    };
+		}
+    }
+
+    return instructions;
 }
 

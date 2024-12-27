@@ -1,8 +1,9 @@
 #include <cstdio>
 #include <iostream>
 #include <string>
+#include <nlohmann/json.hpp>
 
-std::string disass(const char* filename, const char* mcpu);
+nlohmann::json disass(const char* filename, const char* mcpu, int offset);
 
 int main(int argc, char* argv[])
 {
@@ -14,8 +15,8 @@ int main(int argc, char* argv[])
 
 	const char* mcpu = argv[1];
 	const char* filename = argv[2];
-	const std::string result = disass(filename, mcpu);
-	std::cout << result;
+	auto result = disass(filename, mcpu, 0);
+	std::cout << result.dump(4) << std::endl;
 	
 	return 0;
 }
