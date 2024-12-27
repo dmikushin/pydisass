@@ -59,7 +59,6 @@ extern "C"
 #include "elfcomm.h"
 #include "demanguse.h"
 #include "dwarf.h"
-#include "sframe-api.h"
 #include "getopt.h"
 #include "safe-ctype.h"
 #include "dis-asm.h"
@@ -106,8 +105,6 @@ static bool with_source_code;		/* -S */
 static int show_raw_insn;		/* --show-raw-insn */
 static int dump_dwarf_section_info;	/* --dwarf */
 static int dump_stab_section_info;	/* --stabs */
-static int dump_sframe_section_info;	/* --sframe */
-static char *dump_sframe_section_name;
 static int do_demangle;			/* -C, --demangle */
 static bool disassemble;		/* -d */
 static bool disassemble_all;		/* -D */
@@ -243,30 +240,6 @@ typedef enum unicode_display_type
 } unicode_display_type;
 
 static unicode_display_type unicode_display = unicode_default;
-
-/* 150 isn't special; it's just an arbitrary non-ASCII char value.  */
-enum option_values
-  {
-    OPTION_ENDIAN=150,
-    OPTION_START_ADDRESS,
-    OPTION_STOP_ADDRESS,
-    OPTION_DWARF,
-    OPTION_PREFIX,
-    OPTION_PREFIX_STRIP,
-    OPTION_INSN_WIDTH,
-    OPTION_ADJUST_VMA,
-    OPTION_DWARF_DEPTH,
-    OPTION_DWARF_CHECK,
-    OPTION_DWARF_START,
-    OPTION_RECURSE_LIMIT,
-    OPTION_NO_RECURSE_LIMIT,
-    OPTION_INLINES,
-    OPTION_SOURCE_COMMENT,
-    OPTION_SFRAME,
-    OPTION_VISUALIZE_JUMPS,
-    OPTION_DISASSEMBLER_COLOR
-  };
-
 
 static void
 my_bfd_nonfatal (const char *msg)
@@ -4403,47 +4376,6 @@ dump_bfd_header (bfd *abfd)
 }
 
 static void
-dump_section_sframe (bfd *abfd ATTRIBUTE_UNUSED,
-		     const char * sect_name)
-{
-  asection *sec;
-  sframe_decoder_ctx *sfd_ctx = NULL;
-  bfd_size_type sf_size;
-  bfd_byte *sframe_data;
-  bfd_vma sf_vma;
-  int err = 0;
-
-  if (sect_name == NULL)
-    sect_name = ".sframe";
-
-  sec = read_section (abfd, sect_name, &sframe_data);
-  if (sec == NULL)
-    {
-      my_bfd_nonfatal (bfd_get_filename (abfd));
-      return;
-    }
-  sf_size = bfd_section_size (sec);
-  sf_vma = bfd_section_vma (sec);
-
-  /* Decode the contents of the section.  */
-  sfd_ctx = sframe_decode ((const char*)sframe_data, sf_size, &err);
-  if (!sfd_ctx)
-    {
-      my_bfd_nonfatal (bfd_get_filename (abfd));
-      free (sframe_data);
-      return;
-    }
-
-  printf (_("Contents of the SFrame section %s:"),
-	  sanitize_string (sect_name));
-  /* Dump the contents as text.  */
-  dump_sframe (sfd_ctx, sf_vma);
-
-  sframe_decoder_free (&sfd_ctx);
-  free (sframe_data);
-}
-
-static void
 dump_bfd_private_header (bfd *abfd)
 {
   if (!bfd_print_private_bfd_data (abfd, stdout))
@@ -5196,8 +5128,6 @@ dump_bfd (bfd *abfd, bool is_mainfile)
     dump_dwarf (abfd, is_mainfile);
   if (is_mainfile || process_links)
     {
-      if (dump_sframe_section_info)
-	dump_section_sframe (abfd, dump_sframe_section_name);
       if (dump_stab_section_info)
 	dump_stabs (abfd);
       if (dump_reloc_info && ! disassemble)

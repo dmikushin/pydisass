@@ -29,24 +29,6 @@ target_compile_options(opcodes PRIVATE
 	-Wstack-usage=262144
 	-Werror)
 
-add_library(sframe STATIC
-	sframe/sframe.c
-	sframe/sframe-dump.c
-	sframe/sframe-error.c)
-set_property(TARGET sframe PROPERTY POSITION_INDEPENDENT_CODE ON)
-target_include_directories(sframe PRIVATE
-	include
-	sframe)
-target_compile_definitions(sframe PRIVATE
-	HAVE_CONFIG_H)
-target_compile_options(sframe PRIVATE
-	-Wall
-	-Wextra
-	-Wwrite-strings
-	-Wmissing-format-attribute
-	-Wstrict-prototypes
-	-Wmissing-prototypes)
-
 add_library(bfd STATIC
 	bfd/archive.c
 	bfd/archures.c
@@ -84,7 +66,6 @@ add_library(bfd STATIC
 	bfd/elf-attrs.c
 	bfd/elf-strtab.c
 	bfd/elf-eh-frame.c
-	bfd/elf-sframe.c
 	bfd/dwarf1.c
 	bfd/dwarf2.c
 	bfd/elf32-gen.c
@@ -234,8 +215,7 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
 	opcodes
 	bfd
-	liberty
-	sframe)
+	liberty)
 
 add_executable(test_${PROJECT_NAME} src/test/test_${PROJECT_NAME}.cpp)
 target_link_libraries(test_${PROJECT_NAME} ${PROJECT_NAME})

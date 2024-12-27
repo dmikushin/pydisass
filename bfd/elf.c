@@ -4759,12 +4759,6 @@ get_program_header_size (bfd *abfd, struct bfd_link_info *info)
       ++segs;
     }
 
-  if (elf_sframe (abfd))
-    {
-      /* We need a PT_GNU_SFRAME segment.  */
-      ++segs;
-    }
-
   s = bfd_get_section_by_name (abfd,
 			       NOTE_GNU_PROPERTY_SECTION_NAME);
   if (s != NULL && s->size != 0)
@@ -5030,7 +5024,6 @@ _bfd_elf_map_sections_to_segments (bfd *abfd,
       asection *first_tls = NULL;
       asection *first_mbind = NULL;
       asection *dynsec, *eh_frame_hdr;
-      asection *sframe;
       size_t amt;
       bfd_vma addr_mask, wrap_to = 0;  /* Bytes.  */
       bfd_size_type phdr_size;  /* Octets/bytes.  */
@@ -5523,26 +5516,6 @@ _bfd_elf_map_sections_to_segments (bfd *abfd,
 	  m->p_type = PT_GNU_EH_FRAME;
 	  m->count = 1;
 	  m->sections[0] = eh_frame_hdr->output_section;
-
-	  *pm = m;
-	  pm = &m->next;
-	}
-
-      /* If there is a .sframe section, throw in a PT_GNU_SFRAME
-	 segment.  */
-      sframe = elf_sframe (abfd);
-      if (sframe != NULL
-	  && (sframe->output_section->flags & SEC_LOAD) != 0
-	  && sframe->size != 0)
-	{
-	  amt = sizeof (struct elf_segment_map);
-	  m = (struct elf_segment_map *) bfd_zalloc (abfd, amt);
-	  if (m == NULL)
-	    goto error_return;
-	  m->next = NULL;
-	  m->p_type = PT_GNU_SFRAME;
-	  m->count = 1;
-	  m->sections[0] = sframe->output_section;
 
 	  *pm = m;
 	  pm = &m->next;
