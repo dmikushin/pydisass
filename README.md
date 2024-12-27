@@ -1,1 +1,1 @@
-This is a standalone objdump for ARM targets.
+This is a standalone raw binary disassembler for ARM targets based on GNU binutils.

@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5)
 
-project(objdump LANGUAGES C)
+project(disass LANGUAGES C CXX)
 
 list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 
@@ -12,6 +12,7 @@ add_library(opcodes STATIC
 	opcodes/disassemble.c
 	opcodes/dis-init.c
 	opcodes/arm-dis.c)
+set_property(TARGET opcodes PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(opcodes PRIVATE
 	include
 	opcodes
@@ -32,6 +33,7 @@ add_library(sframe STATIC
 	sframe/sframe.c
 	sframe/sframe-dump.c
 	sframe/sframe-error.c)
+set_property(TARGET sframe PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(sframe PRIVATE
 	include
 	sframe)
@@ -89,6 +91,7 @@ add_library(bfd STATIC
 	bfd/plugin.c
 	bfd/cpu-arm.c
 	bfd/archive64.c)
+set_property(TARGET bfd PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(bfd PRIVATE
 	include
 	bfd)
@@ -182,6 +185,7 @@ add_library(liberty STATIC
 	liberty/xstrndup.c
 	liberty/xvasprintf.c
 	liberty/setproctitle.c)
+set_property(TARGET liberty PROPERTY POSITION_INDEPENDENT_CODE ON)
 target_include_directories(liberty PRIVATE
 	include
 	liberty)
@@ -198,8 +202,8 @@ target_compile_options(liberty PRIVATE
 	-pedantic
 	-fcf-protection)
 
-add_executable(${PROJECT_NAME}
-	src/objdump.c
+add_library(${PROJECT_NAME} SHARED
+	src/${PROJECT_NAME}.cpp
 	src/dwarf.c
 	src/prdbg.c
 	src/demanguse.c
@@ -213,7 +217,6 @@ add_executable(${PROJECT_NAME}
 	src/elfcomm.c)
 target_include_directories(${PROJECT_NAME} PRIVATE
 	include
-	binutils
 	bfd)
 target_compile_definitions(${PROJECT_NAME} PRIVATE
 	HAVE_CONFIG_H
@@ -228,8 +231,17 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 	-Wshadow
 	-Wstack-usage=262144
 	-Werror)
-target_link_libraries(${PROJECT_NAME}
+target_link_libraries(${PROJECT_NAME} PRIVATE
 	opcodes
 	bfd
 	liberty
 	sframe)
+
+add_executable(test_${PROJECT_NAME} src/test/test_${PROJECT_NAME}.cpp)
+target_link_libraries(test_${PROJECT_NAME} ${PROJECT_NAME})
+
+enable_testing()
+
+add_test(NAME test_${PROJECT_NAME}
+	COMMAND test_${PROJECT_NAME} arm926ej-s ${CMAKE_CURRENT_SOURCE_DIR}/CyU3PDmaThreadEntry.bin
+	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})

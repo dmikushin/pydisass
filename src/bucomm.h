@@ -62,7 +62,7 @@ off_t get_file_size (const char *);
 
 bool is_valid_archive_path (char const *);
 
-extern char *program_name;
+extern const char *program_name;
 
 /* In filemode.c.  */
 void mode_string (unsigned long, char *);

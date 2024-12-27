@@ -31,7 +31,7 @@
 
 /* Error reporting.  */
 
-char *program_name;
+const char *program_name;
 
 void
 bfd_nonfatal (const char *string)

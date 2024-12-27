@@ -48,6 +48,9 @@
    disassembling is done by the libopcodes library, via a function pointer
    supplied by the disassembler() function.  */
 
+extern "C"
+{
+
 #include "sysdep.h"
 #include "bfd.h"
 #include "elf-bfd.h"
@@ -56,7 +59,6 @@
 #include "elfcomm.h"
 #include "demanguse.h"
 #include "dwarf.h"
-#include "ctf-api.h"
 #include "sframe-api.h"
 #include "getopt.h"
 #include "safe-ctype.h"
@@ -80,14 +82,13 @@
 #define	BYTES_IN_WORD	32
 #include "aout/aout64.h"
 
+} // extern "C"
+
 /* Exit status.  */
 static int exit_status = 0;
 
-static char *default_target = NULL;	/* Default at runtime.  */
-
 /* The following variables are set based on arguments passed on the
    command line.  */
-static int show_version = 0;		/* Show the version number.  */
 static int dump_section_contents;	/* -s */
 static int dump_section_headers;	/* -h */
 static bool dump_file_header;		/* -f */
@@ -105,17 +106,12 @@ static bool with_source_code;		/* -S */
 static int show_raw_insn;		/* --show-raw-insn */
 static int dump_dwarf_section_info;	/* --dwarf */
 static int dump_stab_section_info;	/* --stabs */
-static int dump_ctf_section_info;       /* --ctf */
-static char *dump_ctf_section_name;
-static char *dump_ctf_parent_name;	/* --ctf-parent */
-static char *dump_ctf_parent_section_name;	/* --ctf-parent-section */
 static int dump_sframe_section_info;	/* --sframe */
 static char *dump_sframe_section_name;
 static int do_demangle;			/* -C, --demangle */
 static bool disassemble;		/* -d */
 static bool disassemble_all;		/* -D */
 static int disassemble_zeroes;		/* --disassemble-zeroes */
-static bool formats_info;		/* -i */
 int wide_output;			/* -w */
 static int insn_width;			/* --insn-width */
 static bfd_vma start_address = (bfd_vma) -1; /* --start-address */
@@ -190,7 +186,7 @@ struct objdump_disasm_info
 };
 
 /* Architecture to disassemble for, or default if NULL.  */
-static char *machine = NULL;
+static const char *machine = NULL;
 
 /* Target specific options to the disassembler.  */
 static char *disassembler_options = NULL;
@@ -247,223 +243,6 @@ typedef enum unicode_display_type
 } unicode_display_type;
 
 static unicode_display_type unicode_display = unicode_default;
-
-static void usage (FILE *, int) ATTRIBUTE_NORETURN;
-static void
-usage (FILE *stream, int status)
-{
-  fprintf (stream, _("Usage: %s <option(s)> <file(s)>\n"), program_name);
-  fprintf (stream, _(" Display information from object <file(s)>.\n"));
-  fprintf (stream, _(" At least one of the following switches must be given:\n"));
-  fprintf (stream, _("\
-  -a, --archive-headers    Display archive header information\n"));
-  fprintf (stream, _("\
-  -f, --file-headers       Display the contents of the overall file header\n"));
-  fprintf (stream, _("\
-  -p, --private-headers    Display object format specific file header contents\n"));
-  fprintf (stream, _("\
-  -P, --private=OPT,OPT... Display object format specific contents\n"));
-  fprintf (stream, _("\
-  -h, --[section-]headers  Display the contents of the section headers\n"));
-  fprintf (stream, _("\
-  -x, --all-headers        Display the contents of all headers\n"));
-  fprintf (stream, _("\
-  -d, --disassemble        Display assembler contents of executable sections\n"));
-  fprintf (stream, _("\
-  -D, --disassemble-all    Display assembler contents of all sections\n"));
-  fprintf (stream, _("\
-      --disassemble=<sym>  Display assembler contents from <sym>\n"));
-  fprintf (stream, _("\
-  -S, --source             Intermix source code with disassembly\n"));
-  fprintf (stream, _("\
-      --source-comment[=<txt>] Prefix lines of source code with <txt>\n"));
-  fprintf (stream, _("\
-  -s, --full-contents      Display the full contents of all sections requested\n"));
-  fprintf (stream, _("\
-  -Z, --decompress         Decompress section(s) before displaying their contents\n"));
-  fprintf (stream, _("\
-  -g, --debugging          Display debug information in object file\n"));
-  fprintf (stream, _("\
-  -e, --debugging-tags     Display debug information using ctags style\n"));
-  fprintf (stream, _("\
-  -G, --stabs              Display (in raw form) any STABS info in the file\n"));
-  fprintf (stream, _("\
-  -W, --dwarf[a/=abbrev, A/=addr, r/=aranges, c/=cu_index, L/=decodedline,\n\
-              f/=frames, F/=frames-interp, g/=gdb_index, i/=info, o/=loc,\n\
-              m/=macro, p/=pubnames, t/=pubtypes, R/=Ranges, l/=rawline,\n\
-              s/=str, O/=str-offsets, u/=trace_abbrev, T/=trace_aranges,\n\
-              U/=trace_info]\n\
-                           Display the contents of DWARF debug sections\n"));
-  fprintf (stream, _("\
-  -Wk,--dwarf=links        Display the contents of sections that link to\n\
-                            separate debuginfo files\n"));
-#if DEFAULT_FOR_FOLLOW_LINKS
-  fprintf (stream, _("\
-  -WK,--dwarf=follow-links\n\
-                           Follow links to separate debug info files (default)\n"));
-  fprintf (stream, _("\
-  -WN,--dwarf=no-follow-links\n\
-                           Do not follow links to separate debug info files\n"));
-#else
-  fprintf (stream, _("\
-  -WK,--dwarf=follow-links\n\
-                           Follow links to separate debug info files\n"));
-  fprintf (stream, _("\
-  -WN,--dwarf=no-follow-links\n\
-                           Do not follow links to separate debug info files\n\
-                            (default)\n"));
-#endif
-#if HAVE_LIBDEBUGINFOD
-  fprintf (stream, _("\
-  -WD --dwarf=use-debuginfod\n\
-                           When following links, also query debuginfod servers (default)\n"));
-  fprintf (stream, _("\
-  -WE --dwarf=do-not-use-debuginfod\n\
-                           When following links, do not query debuginfod servers\n"));
-#endif
-  fprintf (stream, _("\
-  -L, --process-links      Display the contents of non-debug sections in\n\
-                            separate debuginfo files.  (Implies -WK)\n"));
-#ifdef ENABLE_LIBCTF
-  fprintf (stream, _("\
-      --ctf[=SECTION]      Display CTF info from SECTION, (default `.ctf')\n"));
-#endif
-  fprintf (stream, _("\
-      --sframe[=SECTION]   Display SFrame info from SECTION, (default '.sframe')\n"));
-  fprintf (stream, _("\
-  -t, --syms               Display the contents of the symbol table(s)\n"));
-  fprintf (stream, _("\
-  -T, --dynamic-syms       Display the contents of the dynamic symbol table\n"));
-  fprintf (stream, _("\
-  -r, --reloc              Display the relocation entries in the file\n"));
-  fprintf (stream, _("\
-  -R, --dynamic-reloc      Display the dynamic relocation entries in the file\n"));
-  fprintf (stream, _("\
-  @<file>                  Read options from <file>\n"));
-  fprintf (stream, _("\
-  -v, --version            Display this program's version number\n"));
-  fprintf (stream, _("\
-  -i, --info               List object formats and architectures supported\n"));
-  fprintf (stream, _("\
-  -H, --help               Display this information\n"));
-
-  if (status != 2)
-    {
-      const struct objdump_private_desc * const *desc;
-
-      fprintf (stream, _("\n The following switches are optional:\n"));
-      fprintf (stream, _("\
-  -b, --target=BFDNAME           Specify the target object format as BFDNAME\n"));
-      fprintf (stream, _("\
-  -m, --architecture=MACHINE     Specify the target architecture as MACHINE\n"));
-      fprintf (stream, _("\
-  -j, --section=NAME             Only display information for section NAME\n"));
-      fprintf (stream, _("\
-  -M, --disassembler-options=OPT Pass text OPT on to the disassembler\n"));
-      fprintf (stream, _("\
-  -EB --endian=big               Assume big endian format when disassembling\n"));
-      fprintf (stream, _("\
-  -EL --endian=little            Assume little endian format when disassembling\n"));
-      fprintf (stream, _("\
-      --file-start-context       Include context from start of file (with -S)\n"));
-      fprintf (stream, _("\
-  -I, --include=DIR              Add DIR to search list for source files\n"));
-      fprintf (stream, _("\
-  -l, --line-numbers             Include line numbers and filenames in output\n"));
-      fprintf (stream, _("\
-  -F, --file-offsets             Include file offsets when displaying information\n"));
-      fprintf (stream, _("\
-  -C, --demangle[=STYLE]         Decode mangled/processed symbol names\n"));
-      display_demangler_styles (stream, _("\
-                                   STYLE can be "));
-      fprintf (stream, _("\
-      --recurse-limit            Enable a limit on recursion whilst demangling\n\
-                                  (default)\n"));
-      fprintf (stream, _("\
-      --no-recurse-limit         Disable a limit on recursion whilst demangling\n"));
-      fprintf (stream, _("\
-  -w, --wide                     Format output for more than 80 columns\n"));
-      fprintf (stream, _("\
-  -U[d|l|i|x|e|h]                Controls the display of UTF-8 unicode characters\n\
-  --unicode=[default|locale|invalid|hex|escape|highlight]\n"));
-      fprintf (stream, _("\
-  -z, --disassemble-zeroes       Do not skip blocks of zeroes when disassembling\n"));
-      fprintf (stream, _("\
-      --start-address=ADDR       Only process data whose address is >= ADDR\n"));
-      fprintf (stream, _("\
-      --stop-address=ADDR        Only process data whose address is < ADDR\n"));
-      fprintf (stream, _("\
-      --no-addresses             Do not print address alongside disassembly\n"));
-      fprintf (stream, _("\
-      --prefix-addresses         Print complete address alongside disassembly\n"));
-      fprintf (stream, _("\
-      --[no-]show-raw-insn       Display hex alongside symbolic disassembly\n"));
-      fprintf (stream, _("\
-      --insn-width=WIDTH         Display WIDTH bytes on a single line for -d\n"));
-      fprintf (stream, _("\
-      --adjust-vma=OFFSET        Add OFFSET to all displayed section addresses\n"));
-      fprintf (stream, _("\
-      --show-all-symbols         When disassembling, display all symbols at a given address\n"));
-      fprintf (stream, _("\
-      --special-syms             Include special symbols in symbol dumps\n"));
-      fprintf (stream, _("\
-      --inlines                  Print all inlines for source line (with -l)\n"));
-      fprintf (stream, _("\
-      --prefix=PREFIX            Add PREFIX to absolute paths for -S\n"));
-      fprintf (stream, _("\
-      --prefix-strip=LEVEL       Strip initial directory names for -S\n"));
-      fprintf (stream, _("\
-      --dwarf-depth=N            Do not display DIEs at depth N or greater\n"));
-      fprintf (stream, _("\
-      --dwarf-start=N            Display DIEs starting at offset N\n"));
-      fprintf (stream, _("\
-      --dwarf-check              Make additional dwarf consistency checks.\n"));
-#ifdef ENABLE_LIBCTF
-      fprintf (stream, _("\
-      --ctf-parent=NAME          Use CTF archive member NAME as the CTF parent\n"));
-#endif
-      fprintf (stream, _("\
-      --visualize-jumps          Visualize jumps by drawing ASCII art lines\n"));
-      fprintf (stream, _("\
-      --visualize-jumps=color    Use colors in the ASCII art\n"));
-      fprintf (stream, _("\
-      --visualize-jumps=extended-color\n\
-                                 Use extended 8-bit color codes\n"));
-      fprintf (stream, _("\
-      --visualize-jumps=off      Disable jump visualization\n"));
-#if DEFAULT_FOR_COLORED_DISASSEMBLY
-      fprintf (stream, _("\
-      --disassembler-color=off       Disable disassembler color output.\n"));
-      fprintf (stream, _("\
-      --disassembler-color=terminal  Enable disassembler color output if displaying on a terminal. (default)\n"));
-#else
-      fprintf (stream, _("\
-      --disassembler-color=off       Disable disassembler color output. (default)\n"));
-      fprintf (stream, _("\
-      --disassembler-color=terminal  Enable disassembler color output if displaying on a terminal.\n"));
-#endif
-      fprintf (stream, _("\
-      --disassembler-color=on        Enable disassembler color output.\n"));
-      fprintf (stream, _("\
-      --disassembler-color=extended  Use 8-bit colors in disassembler output.\n\n"));
-
-      list_supported_targets (program_name, stream);
-      list_supported_architectures (program_name, stream);
-
-      disassembler_usage (stream);
-
-      if (objdump_private_vectors[0] != NULL)
-        {
-          fprintf (stream,
-                   _("\nOptions supported for -P/--private switch:\n"));
-          for (desc = objdump_private_vectors; *desc != NULL; desc++)
-            (*desc)->help (stream);
-        }
-    }
-  if (REPORT_BUGS_TO[0] && status == 0)
-    fprintf (stream, _("Report bugs to %s.\n"), REPORT_BUGS_TO);
-  exit (status);
-}
 
 /* 150 isn't special; it's just an arbitrary non-ASCII char value.  */
 enum option_values
@@ -483,87 +262,12 @@ enum option_values
     OPTION_NO_RECURSE_LIMIT,
     OPTION_INLINES,
     OPTION_SOURCE_COMMENT,
-#ifdef ENABLE_LIBCTF
-    OPTION_CTF,
-    OPTION_CTF_PARENT,
-    OPTION_CTF_PARENT_SECTION,
-#endif
     OPTION_SFRAME,
     OPTION_VISUALIZE_JUMPS,
     OPTION_DISASSEMBLER_COLOR
   };
 
-static struct option long_options[]=
-{
-  {"adjust-vma", required_argument, NULL, OPTION_ADJUST_VMA},
-  {"all-headers", no_argument, NULL, 'x'},
-  {"architecture", required_argument, NULL, 'm'},
-  {"archive-headers", no_argument, NULL, 'a'},
-#ifdef ENABLE_LIBCTF
-  {"ctf", optional_argument, NULL, OPTION_CTF},
-  {"ctf-parent", required_argument, NULL, OPTION_CTF_PARENT},
-  {"ctf-parent-section", required_argument, NULL, OPTION_CTF_PARENT_SECTION},
-#endif
-  {"debugging", no_argument, NULL, 'g'},
-  {"debugging-tags", no_argument, NULL, 'e'},
-  {"decompress", no_argument, NULL, 'Z'},
-  {"demangle", optional_argument, NULL, 'C'},
-  {"disassemble", optional_argument, NULL, 'd'},
-  {"disassemble-all", no_argument, NULL, 'D'},
-  {"disassemble-zeroes", no_argument, NULL, 'z'},
-  {"disassembler-options", required_argument, NULL, 'M'},
-  {"dwarf", optional_argument, NULL, OPTION_DWARF},
-  {"dwarf-check", no_argument, 0, OPTION_DWARF_CHECK},
-  {"dwarf-depth", required_argument, 0, OPTION_DWARF_DEPTH},
-  {"dwarf-start", required_argument, 0, OPTION_DWARF_START},
-  {"dynamic-reloc", no_argument, NULL, 'R'},
-  {"dynamic-syms", no_argument, NULL, 'T'},
-  {"endian", required_argument, NULL, OPTION_ENDIAN},
-  {"file-headers", no_argument, NULL, 'f'},
-  {"file-offsets", no_argument, NULL, 'F'},
-  {"file-start-context", no_argument, &file_start_context, 1},
-  {"full-contents", no_argument, NULL, 's'},
-  {"headers", no_argument, NULL, 'h'},
-  {"help", no_argument, NULL, 'H'},
-  {"include", required_argument, NULL, 'I'},
-  {"info", no_argument, NULL, 'i'},
-  {"inlines", no_argument, 0, OPTION_INLINES},
-  {"insn-width", required_argument, NULL, OPTION_INSN_WIDTH},
-  {"line-numbers", no_argument, NULL, 'l'},
-  {"no-addresses", no_argument, &no_addresses, 1},
-  {"no-recurse-limit", no_argument, NULL, OPTION_NO_RECURSE_LIMIT},
-  {"no-recursion-limit", no_argument, NULL, OPTION_NO_RECURSE_LIMIT},
-  {"no-show-raw-insn", no_argument, &show_raw_insn, -1},
-  {"prefix", required_argument, NULL, OPTION_PREFIX},
-  {"prefix-addresses", no_argument, &prefix_addresses, 1},
-  {"prefix-strip", required_argument, NULL, OPTION_PREFIX_STRIP},
-  {"private", required_argument, NULL, 'P'},
-  {"private-headers", no_argument, NULL, 'p'},
-  {"process-links", no_argument, &process_links, true},
-  {"recurse-limit", no_argument, NULL, OPTION_RECURSE_LIMIT},
-  {"recursion-limit", no_argument, NULL, OPTION_RECURSE_LIMIT},
-  {"reloc", no_argument, NULL, 'r'},
-  {"section", required_argument, NULL, 'j'},
-  {"section-headers", no_argument, NULL, 'h'},
-  {"sframe", optional_argument, NULL, OPTION_SFRAME},
-  {"show-all-symbols", no_argument, &show_all_symbols, 1},
-  {"show-raw-insn", no_argument, &show_raw_insn, 1},
-  {"source", no_argument, NULL, 'S'},
-  {"source-comment", optional_argument, NULL, OPTION_SOURCE_COMMENT},
-  {"special-syms", no_argument, &dump_special_syms, 1},
-  {"stabs", no_argument, NULL, 'G'},
-  {"start-address", required_argument, NULL, OPTION_START_ADDRESS},
-  {"stop-address", required_argument, NULL, OPTION_STOP_ADDRESS},
-  {"syms", no_argument, NULL, 't'},
-  {"target", required_argument, NULL, 'b'},
-  {"unicode", required_argument, NULL, 'U'},
-  {"version", no_argument, NULL, 'V'},
-  {"visualize-jumps", optional_argument, 0, OPTION_VISUALIZE_JUMPS},
-  {"wide", no_argument, NULL, 'w'},
-  {"disassembler-color", required_argument, NULL, OPTION_DISASSEMBLER_COLOR},
-  {NULL, no_argument, NULL, 0}
-};
-
+
 static void
 my_bfd_nonfatal (const char *msg)
 {
@@ -727,7 +431,7 @@ sanitize_string (const char * in)
     {
       buffer_len = max_needed;
       free (buffer);
-      buffer = xmalloc (buffer_len);
+      buffer = (char*)xmalloc (buffer_len);
     }
 
   out = buffer;
@@ -759,7 +463,6 @@ sanitize_string (const char * in)
   return buffer;
 }
 
-
 /* Returns TRUE if the specified section should be dumped.  */
 
 static bool
@@ -780,69 +483,10 @@ process_section_p (asection * section)
   return false;
 }
 
-/* Add an entry to the 'only' list.  */
-
-static void
-add_only (char * name)
-{
-  struct only * only;
-
-  /* First check to make sure that we do not
-     already have an entry for this name.  */
-  for (only = only_list; only; only = only->next)
-    if (strcmp (only->name, name) == 0)
-      return;
-
-  only = xmalloc (sizeof * only);
-  only->name = name;
-  only->seen = false;
-  only->next = only_list;
-  only_list = only;
-}
-
-/* Release the memory used by the 'only' list.
-   PR 11225: Issue a warning message for unseen sections.
-   Only do this if none of the sections were seen.  This is mainly to support
-   tools like the GAS testsuite where an object file is dumped with a list of
-   generic section names known to be present in a range of different file
-   formats.  */
-
-static void
-free_only_list (void)
-{
-  bool at_least_one_seen = false;
-  struct only * only;
-  struct only * next;
-
-  if (only_list == NULL)
-    return;
-
-  for (only = only_list; only; only = only->next)
-    if (only->seen)
-      {
-	at_least_one_seen = true;
-	break;
-      }
-
-  for (only = only_list; only; only = next)
-    {
-      if (! at_least_one_seen)
-	{
-	  non_fatal (_("section '%s' mentioned in a -j option, "
-		       "but not found in any input file"),
-		     only->name);
-	  exit_status = 1;
-	}
-      next = only->next;
-      free (only);
-    }
-}
-
-
 static void
 dump_section_header (bfd *abfd, asection *section, void *data)
 {
-  char *comma = "";
+  const char *comma = "";
   unsigned int opb = bfd_octets_per_byte (abfd, section);
   int longest_section_name = *((int *) data);
 
@@ -1004,7 +648,7 @@ dump_headers (bfd *abfd)
   bfd_map_over_sections (abfd, dump_section_header,
 			 &max_section_name_length);
 }
-
+
 static asymbol **
 slurp_symtab (bfd *abfd)
 {
@@ -1991,7 +1635,7 @@ slurp_file (const char *   fn,
 #ifdef HAVE_MMAP
   ps = getpagesize ();
   msize = (*size_return + ps - 1) & ~(ps - 1);
-  map = mmap (NULL, msize, PROT_READ, MAP_SHARED, fd, 0);
+  map = (const char *) mmap (NULL, msize, PROT_READ, MAP_SHARED, fd, 0);
   if (map != (char *) -1L)
     {
       close (fd);
@@ -2255,7 +1899,7 @@ show_line (bfd *abfd, asection *section, bfd_vma addr_offset)
       char *path_up;
       const char *fname = filename;
 
-      path = xmalloc (prefix_length + 1 + strlen (filename));
+      path = (char*) xmalloc (prefix_length + 1 + strlen (filename));
 
       if (prefix_length)
 	memcpy (path, prefix, prefix_length);
@@ -2631,11 +2275,11 @@ struct jump_info
 static struct jump_info *
 jump_info_new (bfd_vma start, bfd_vma end, int level)
 {
-  struct jump_info *result = xmalloc (sizeof (struct jump_info));
+  struct jump_info *result = (struct jump_info *) xmalloc (sizeof (struct jump_info));
 
   result->next = NULL;
   result->prev = NULL;
-  result->start.addresses = xmalloc (sizeof (bfd_vma *) * 2);
+  result->start.addresses = (bfd_vma *) xmalloc (sizeof (bfd_vma *) * 2);
   result->start.addresses[0] = start;
   result->start.count = 1;
   result->start.max_count = 2;
@@ -2826,7 +2470,7 @@ jump_info_merge (struct jump_info **base)
 		{
 		  a->start.max_count += b->start.max_count;
 		  a->start.addresses =
-		    xrealloc (a->start.addresses,
+		    (bfd_vma*) xrealloc (a->start.addresses,
 			      a->start.max_count * sizeof (bfd_vma *));
 		}
 
@@ -3340,9 +2984,9 @@ disassemble_bytes (struct disassemble_info *inf,
 
       /* Allocate buffers.  */
       size_t len = (max_level + 1) * 3 + 1;
-      line_buffer = xmalloc (len);
+      line_buffer = (char*) xmalloc (len);
       line_buffer[len - 1] = 0;
-      color_buffer = xmalloc (len);
+      color_buffer = (uint8_t*) xmalloc (len);
       color_buffer[len - 1] = 0;
     }
 
@@ -4310,7 +3954,7 @@ load_specific_debug_section (enum dwarf_section_display_enum debug,
   ret = false;
   if ((sec->flags & SEC_HAS_CONTENTS) != 0)
     {
-      section->start = contents = xmalloc (alloced);
+      section->start = contents = (bfd_byte *) xmalloc (alloced);
       /* Ensure any string section has a terminating NUL.  */
       section->start[section->size] = 0;
 
@@ -4535,7 +4179,7 @@ dump_dwarf (bfd *abfd, bool is_mainfile)
 
   bfd_map_over_sections (abfd, dump_dwarf_section, (void *) &is_mainfile);
 }
-
+
 /* Read ABFD's section SECT_NAME into *CONTENTS, and return a pointer to
    the section.  Return NULL on failure.   */
 
@@ -4703,7 +4347,7 @@ find_stabs_section (bfd *abfd, asection *section, void *names)
 }
 
 static void
-dump_stabs_section (bfd *abfd, char *stabsect_name, char *strsect_name)
+dump_stabs_section (bfd *abfd, const char *stabsect_name, const char *strsect_name)
 {
   stab_section_names s;
 
@@ -4731,11 +4375,11 @@ dump_stabs (bfd *abfd)
 
   dump_stabs_section (abfd, "$GDB_SYMBOLS$", "$GDB_STRINGS$");
 }
-
+
 static void
 dump_bfd_header (bfd *abfd)
 {
-  char *comma = "";
+  const char *comma = "";
 
   printf (_("architecture: %s, "),
 	  bfd_printable_arch_mach (bfd_get_arch (abfd),
@@ -4757,210 +4401,6 @@ dump_bfd_header (bfd *abfd)
   bfd_printf_vma (abfd, abfd->start_address);
   printf ("\n");
 }
-
-
-#ifdef ENABLE_LIBCTF
-/* Formatting callback function passed to ctf_dump.  Returns either the pointer
-   it is passed, or a pointer to newly-allocated storage, in which case
-   dump_ctf() will free it when it no longer needs it.  */
-
-static char *
-dump_ctf_indent_lines (ctf_sect_names_t sect ATTRIBUTE_UNUSED,
-		       char *s, void *arg)
-{
-  const char *blanks = arg;
-  return xasprintf ("%s%s", blanks, s);
-}
-
-/* Make a ctfsect suitable for ctf_bfdopen_ctfsect().  */
-static ctf_sect_t
-make_ctfsect (const char *name, bfd_byte *data,
-	      bfd_size_type size)
-{
-  ctf_sect_t ctfsect;
-
-  ctfsect.cts_name = name;
-  ctfsect.cts_entsize = 1;
-  ctfsect.cts_size = size;
-  ctfsect.cts_data = data;
-
-  return ctfsect;
-}
-
-/* Dump CTF errors/warnings.  */
-static void
-dump_ctf_errs (ctf_dict_t *fp)
-{
-  ctf_next_t *it = NULL;
-  char *errtext;
-  int is_warning;
-  int err;
-
-  /* Dump accumulated errors and warnings.  */
-  while ((errtext = ctf_errwarning_next (fp, &it, &is_warning, &err)) != NULL)
-    {
-      non_fatal (_("%s: %s"), is_warning ? _("warning"): _("error"),
-		 errtext);
-      free (errtext);
-    }
-  if (err != ECTF_NEXT_END)
-    {
-      non_fatal (_("CTF error: cannot get CTF errors: `%s'"),
-		 ctf_errmsg (err));
-    }
-}
-
-/* Dump one CTF archive member.  */
-
-static void
-dump_ctf_archive_member (ctf_dict_t *ctf, const char *name, ctf_dict_t *parent,
-			 size_t member)
-{
-  const char *things[] = {"Header", "Labels", "Data objects",
-			  "Function objects", "Variables", "Types", "Strings",
-			  ""};
-  const char **thing;
-  size_t i;
-
-  /* Don't print out the name of the default-named archive member if it appears
-     first in the list.  The name .ctf appears everywhere, even for things that
-     aren't really archives, so printing it out is liable to be confusing; also,
-     the common case by far is for only one archive member to exist, and hiding
-     it in that case seems worthwhile.  */
-
-  if (strcmp (name, ".ctf") != 0 || member != 0)
-    printf (_("\nCTF archive member: %s:\n"), sanitize_string (name));
-
-  if (ctf_parent_name (ctf) != NULL)
-    ctf_import (ctf, parent);
-
-  for (i = 0, thing = things; *thing[0]; thing++, i++)
-    {
-      ctf_dump_state_t *s = NULL;
-      char *item;
-
-      printf ("\n  %s:\n", *thing);
-      while ((item = ctf_dump (ctf, &s, i, dump_ctf_indent_lines,
-			       (void *) "    ")) != NULL)
-	{
-	  printf ("%s\n", item);
-	  free (item);
-	}
-
-      if (ctf_errno (ctf))
-	{
-	  non_fatal (_("Iteration failed: %s, %s"), *thing,
-		   ctf_errmsg (ctf_errno (ctf)));
-	  break;
-	}
-    }
-
-  dump_ctf_errs (ctf);
-}
-
-/* Dump the CTF debugging information.  */
-
-static void
-dump_ctf (bfd *abfd, const char *sect_name, const char *parent_name,
-	  const char *parent_sect_name)
-{
-  asection *sec, *psec = NULL;
-  ctf_archive_t *ctfa;
-  ctf_archive_t *ctfpa = NULL;
-  bfd_byte *ctfdata = NULL;
-  bfd_byte *ctfpdata = NULL;
-  ctf_sect_t ctfsect;
-  ctf_dict_t *parent;
-  ctf_dict_t *fp;
-  ctf_next_t *i = NULL;
-  const char *name;
-  size_t member = 0;
-  int err;
-
-  if (sect_name == NULL)
-    sect_name = ".ctf";
-
-  sec = read_section (abfd, sect_name, &ctfdata);
-  if (sec == NULL)
-    {
-      my_bfd_nonfatal (bfd_get_filename (abfd));
-      return;
-    }
-
-  /* Load the CTF file and dump it.  Preload the parent dict, since it will
-     need to be imported into every child in turn.  The parent dict may come
-     from a different section entirely.  */
-
-  ctfsect = make_ctfsect (sect_name, ctfdata, bfd_section_size (sec));
-  if ((ctfa = ctf_bfdopen_ctfsect (abfd, &ctfsect, &err)) == NULL)
-    {
-      dump_ctf_errs (NULL);
-      non_fatal (_("CTF open failure: %s"), ctf_errmsg (err));
-      my_bfd_nonfatal (bfd_get_filename (abfd));
-      free (ctfdata);
-      return;
-    }
-
-  if (parent_sect_name)
-    {
-      psec = read_section (abfd, parent_sect_name, &ctfpdata);
-      if (sec == NULL)
-	{
-	  my_bfd_nonfatal (bfd_get_filename (abfd));
-	  free (ctfdata);
-	  return;
-	}
-
-      ctfsect = make_ctfsect (parent_sect_name, ctfpdata, bfd_section_size (psec));
-      if ((ctfpa = ctf_bfdopen_ctfsect (abfd, &ctfsect, &err)) == NULL)
-	{
-	  dump_ctf_errs (NULL);
-	  non_fatal (_("CTF open failure: %s"), ctf_errmsg (err));
-	  my_bfd_nonfatal (bfd_get_filename (abfd));
-	  free (ctfdata);
-	  free (ctfpdata);
-	  return;
-	}
-    }
-  else
-    ctfpa = ctfa;
-
-  if ((parent = ctf_dict_open (ctfpa, parent_name, &err)) == NULL)
-    {
-      dump_ctf_errs (NULL);
-      non_fatal (_("CTF open failure: %s"), ctf_errmsg (err));
-      my_bfd_nonfatal (bfd_get_filename (abfd));
-      ctf_close (ctfa);
-      free (ctfdata);
-      free (ctfpdata);
-      return;
-    }
-
-  printf (_("Contents of CTF section %s:\n"), sanitize_string (sect_name));
-
-  while ((fp = ctf_archive_next (ctfa, &i, &name, 0, &err)) != NULL)
-    dump_ctf_archive_member (fp, name, parent, member++);
-  if (err != ECTF_NEXT_END)
-    {
-      dump_ctf_errs (NULL);
-      non_fatal (_("CTF archive member open failure: %s"), ctf_errmsg (err));
-      my_bfd_nonfatal (bfd_get_filename (abfd));
-    }
-  ctf_dict_close (parent);
-  ctf_close (ctfa);
-  free (ctfdata);
-  if (parent_sect_name)
-    {
-      ctf_close (ctfpa);
-      free (ctfpdata);
-    }
-}
-#else
-static void
-dump_ctf (bfd *abfd ATTRIBUTE_UNUSED, const char *sect_name ATTRIBUTE_UNUSED,
-	  const char *parent_name ATTRIBUTE_UNUSED,
-	  const char *parent_sect_name ATTRIBUTE_UNUSED) {}
-#endif
 
 static void
 dump_section_sframe (bfd *abfd ATTRIBUTE_UNUSED,
@@ -5003,7 +4443,6 @@ dump_section_sframe (bfd *abfd ATTRIBUTE_UNUSED,
   free (sframe_data);
 }
 
-
 static void
 dump_bfd_private_header (bfd *abfd)
 {
@@ -5063,7 +4502,7 @@ dump_target_specific (bfd *abfd)
   /* Dump.  */
   (*desc)->dump (abfd);
 }
-
+
 /* Display a section in hexadecimal format with associated characters.
    Each line prefixed by the zero padded address.  */
 
@@ -5296,7 +4735,7 @@ dump_symbols (bfd *abfd ATTRIBUTE_UNUSED, bool dynamic)
     }
   printf ("\n\n");
 }
-
+
 static void
 dump_reloc_set (bfd *abfd, asection *sec, arelent **relpp, long relcount)
 {
@@ -5575,23 +5014,6 @@ dump_dynamic_relocs (bfd *abfd)
   free (relpp);
 }
 
-/* Creates a table of paths, to search for source files.  */
-
-static void
-add_include_path (const char *path)
-{
-  if (path[0] == 0)
-    return;
-  include_path_count++;
-  include_paths = (const char **)
-      xrealloc (include_paths, include_path_count * sizeof (*include_paths));
-#ifdef HAVE_DOS_BASED_FILE_SYSTEM
-  if (path[1] == ':' && path[2] == 0)
-    path = concat (path, ".", (const char *) 0);
-#endif
-  include_paths[include_path_count - 1] = path;
-}
-
 static void
 adjust_addresses (bfd *abfd ATTRIBUTE_UNUSED,
 		  asection *section,
@@ -5663,7 +5085,7 @@ dump_bfd (bfd *abfd, bool is_mainfile)
 	  separate_info * i;
 
 	  for (i = first_separate_info; i != NULL; i = i->next)
-	    dump_bfd (i->handle, false);
+	    dump_bfd ((bfd*) i->handle, false);
 	}
     }
 
@@ -5724,7 +5146,7 @@ dump_bfd (bfd *abfd, bool is_mainfile)
 	      asymbol **  extra_syms;
 	      long        old_symcount = symcount;
 
-	      extra_syms = slurp_symtab (i->handle);
+	      extra_syms = slurp_symtab ((bfd*) i->handle);
 
 	      if (extra_syms)
 		{
@@ -5734,7 +5156,7 @@ dump_bfd (bfd *abfd, bool is_mainfile)
 		    }
 		  else
 		    {
-		      syms = xrealloc (syms, ((symcount + old_symcount + 1)
+		      syms = (asymbol**) xrealloc (syms, ((symcount + old_symcount + 1)
 					      * sizeof (asymbol *)));
 		      memcpy (syms + old_symcount,
 			      extra_syms,
@@ -5774,9 +5196,6 @@ dump_bfd (bfd *abfd, bool is_mainfile)
     dump_dwarf (abfd, is_mainfile);
   if (is_mainfile || process_links)
     {
-      if (dump_ctf_section_info)
-	dump_ctf (abfd, dump_ctf_section_name, dump_ctf_parent_name,
-		  dump_ctf_parent_section_name);
       if (dump_sframe_section_info)
 	dump_section_sframe (abfd, dump_sframe_section_name);
       if (dump_stab_section_info)
@@ -5932,7 +5351,7 @@ display_any_bfd (bfd *file, int level)
 }
 
 static void
-display_file (char *filename, char *target)
+display_file (const char *filename, const char *target)
 {
   bfd *file;
 
@@ -5953,418 +5372,41 @@ display_file (char *filename, char *target)
 
   bfd_close (file);
 }
-
-int
-main (int argc, char **argv)
+
+class Disassembler
 {
-  int c;
-  char *target = default_target;
-  bool seenflag = false;
+public:
 
-#ifdef HAVE_LC_MESSAGES
-  setlocale (LC_MESSAGES, "");
-#endif
-  setlocale (LC_CTYPE, "");
+  Disassembler()
+  {
+    setlocale (LC_CTYPE, "");
 
-  bindtextdomain (PACKAGE, LOCALEDIR);
-  textdomain (PACKAGE);
+    bindtextdomain (PACKAGE, LOCALEDIR);
+    textdomain (PACKAGE);
 
-  program_name = *argv;
-  xmalloc_set_program_name (program_name);
-  bfd_set_error_program_name (program_name);
+    program_name = "disass";
+    xmalloc_set_program_name (program_name);
+    bfd_set_error_program_name (program_name);
 
-  expandargv (&argc, &argv);
+    if (bfd_init () != BFD_INIT_MAGIC)
+      fatal (_("fatal error: libbfd ABI mismatch"));
+    set_default_bfd_target ();
 
-  if (bfd_init () != BFD_INIT_MAGIC)
-    fatal (_("fatal error: libbfd ABI mismatch"));
-  set_default_bfd_target ();
+    disassemble = true;
+    disassemble_all = true;
+  }
 
-  while ((c = getopt_long (argc, argv,
-			   "CDE:FGHI:LM:P:RSTU:VW::Zab:defghij:lm:prstvwxz",
-			   long_options, (int *) 0))
-	 != EOF)
-    {
-      switch (c)
-	{
-	case 0:
-	  break;		/* We've been given a long option.  */
-	case 'm':
-	  machine = optarg;
-	  break;
-	case 'Z':
-	  decompressed_dumps = true;
-	  break;
-	case 'M':
-	  {
-	    char *options;
-	    if (disassembler_options)
-	      /* Ignore potential memory leak for now.  */
-	      options = concat (disassembler_options, ",",
-				optarg, (const char *) NULL);
-	    else
-	      options = optarg;
-	    disassembler_options = remove_whitespace_and_extra_commas (options);
-	  }
-	  break;
-	case 'j':
-	  add_only (optarg);
-	  break;
-	case 'F':
-	  display_file_offsets = true;
-	  break;
-	case 'l':
-	  with_line_numbers = true;
-	  break;
-	case 'b':
-	  target = optarg;
-	  break;
-	case 'C':
-	  do_demangle = true;
-	  if (optarg != NULL)
-	    {
-	      enum demangling_styles style;
+  void run(const char* filename, const char* mcpu)
+  {
+    machine = mcpu;
+    display_file (filename, "binary");
+  }
+};
 
-	      style = cplus_demangle_name_to_style (optarg);
-	      if (style == unknown_demangling)
-		fatal (_("unknown demangling style `%s'"),
-		       optarg);
+static Disassembler d;
 
-	      cplus_demangle_set_style (style);
-	    }
-	  break;
-	case OPTION_RECURSE_LIMIT:
-	  demangle_flags &= ~ DMGL_NO_RECURSE_LIMIT;
-	  break;
-	case OPTION_NO_RECURSE_LIMIT:
-	  demangle_flags |= DMGL_NO_RECURSE_LIMIT;
-	  break;
-	case 'w':
-	  do_wide = wide_output = true;
-	  break;
-	case OPTION_ADJUST_VMA:
-	  adjust_section_vma = parse_vma (optarg, "--adjust-vma");
-	  break;
-	case OPTION_START_ADDRESS:
-	  start_address = parse_vma (optarg, "--start-address");
-	  if ((stop_address != (bfd_vma) -1) && stop_address <= start_address)
-	    fatal (_("error: the start address should be before the end address"));
-	  break;
-	case OPTION_STOP_ADDRESS:
-	  stop_address = parse_vma (optarg, "--stop-address");
-	  if ((start_address != (bfd_vma) -1) && stop_address <= start_address)
-	    fatal (_("error: the stop address should be after the start address"));
-	  break;
-	case OPTION_PREFIX:
-	  prefix = optarg;
-	  prefix_length = strlen (prefix);
-	  /* Remove an unnecessary trailing '/' */
-	  while (IS_DIR_SEPARATOR (prefix[prefix_length - 1]))
-	    prefix_length--;
-	  break;
-	case OPTION_PREFIX_STRIP:
-	  prefix_strip = atoi (optarg);
-	  if (prefix_strip < 0)
-	    fatal (_("error: prefix strip must be non-negative"));
-	  break;
-	case OPTION_INSN_WIDTH:
-	  insn_width = strtoul (optarg, NULL, 0);
-	  if (insn_width <= 0)
-	    fatal (_("error: instruction width must be positive"));
-	  break;
-	case OPTION_INLINES:
-	  unwind_inlines = true;
-	  break;
-	case OPTION_VISUALIZE_JUMPS:
-	  visualize_jumps = true;
-	  color_output = false;
-	  extended_color_output = false;
-	  if (optarg != NULL)
-	    {
-	      if (streq (optarg, "color"))
-		color_output = true;
-	      else if (streq (optarg, "extended-color"))
-		{
-		  color_output = true;
-		  extended_color_output = true;
-		}
-	      else if (streq (optarg, "off"))
-		visualize_jumps = false;
-	      else
-		{
-		  non_fatal (_("unrecognized argument to --visualize-option"));
-		  usage (stderr, 1);
-		}
-	    }
-	  break;
-	case OPTION_DISASSEMBLER_COLOR:
-	  if (streq (optarg, "off"))
-	    disassembler_color = off;
-	  else if (streq (optarg, "terminal"))
-	    disassembler_color = on_if_terminal_output;
-	  else if (streq (optarg, "color")
-		   || streq (optarg, "colour")
-		   || streq (optarg, "on")) 
-	    disassembler_color = on;
-	  else if (streq (optarg, "extended")
-		   || streq (optarg, "extended-color")
-		   || streq (optarg, "extended-colour"))
-	    disassembler_color = extended;
-	  else
-	    {
-	      non_fatal (_("unrecognized argument to --disassembler-color"));
-	      usage (stderr, 1);
-	    }
-	  break;
-	case 'E':
-	  if (strcmp (optarg, "B") == 0)
-	    endian = BFD_ENDIAN_BIG;
-	  else if (strcmp (optarg, "L") == 0)
-	    endian = BFD_ENDIAN_LITTLE;
-	  else
-	    {
-	      non_fatal (_("unrecognized -E option"));
-	      usage (stderr, 1);
-	    }
-	  break;
-	case OPTION_ENDIAN:
-	  if (strncmp (optarg, "big", strlen (optarg)) == 0)
-	    endian = BFD_ENDIAN_BIG;
-	  else if (strncmp (optarg, "little", strlen (optarg)) == 0)
-	    endian = BFD_ENDIAN_LITTLE;
-	  else
-	    {
-	      non_fatal (_("unrecognized --endian type `%s'"), optarg);
-	      usage (stderr, 1);
-	    }
-	  break;
-
-	case 'f':
-	  dump_file_header = true;
-	  seenflag = true;
-	  break;
-	case 'i':
-	  formats_info = true;
-	  seenflag = true;
-	  break;
-	case 'I':
-	  add_include_path (optarg);
-	  break;
-	case 'p':
-	  dump_private_headers = true;
-	  seenflag = true;
-	  break;
-	case 'P':
-	  dump_private_options = optarg;
-	  seenflag = true;
-	  break;
-	case 'x':
-	  dump_private_headers = true;
-	  dump_symtab = true;
-	  dump_reloc_info = true;
-	  dump_file_header = true;
-	  dump_ar_hdrs = true;
-	  dump_section_headers = true;
-	  seenflag = true;
-	  break;
-	case 't':
-	  dump_symtab = true;
-	  seenflag = true;
-	  break;
-	case 'T':
-	  dump_dynamic_symtab = true;
-	  seenflag = true;
-	  break;
-	case 'd':
-	  disassemble = true;
-	  seenflag = true;
-	  disasm_sym = optarg;
-	  break;
-	case 'z':
-	  disassemble_zeroes = true;
-	  break;
-	case 'D':
-	  disassemble = true;
-	  disassemble_all = true;
-	  seenflag = true;
-	  break;
-	case 'S':
-	  disassemble = true;
-	  with_source_code = true;
-	  seenflag = true;
-	  break;
-	case OPTION_SOURCE_COMMENT:
-	  disassemble = true;
-	  with_source_code = true;
-	  seenflag = true;
-	  if (optarg)
-	    source_comment = xstrdup (sanitize_string (optarg));
-	  else
-	    source_comment = xstrdup ("# ");
-	  break;
-	case 'g':
-	  dump_debugging = 1;
-	  seenflag = true;
-	  break;
-	case 'e':
-	  dump_debugging = 1;
-	  dump_debugging_tags = 1;
-	  do_demangle = true;
-	  seenflag = true;
-	  break;
-	case 'L':
-	  process_links = true;
-	  do_follow_links = true;
-	  break;
-	case 'W':
-	  seenflag = true;
-	  if (optarg)
-	    {
-	      if (dwarf_select_sections_by_letters (optarg))
-		dump_dwarf_section_info = true;
-	    }
-	  else
-	    {
-	      dump_dwarf_section_info = true;
-	      dwarf_select_sections_all ();
-	    }
-	  break;
-	case OPTION_DWARF:
-	  seenflag = true;
-	  if (optarg)
-	    {
-	      if (dwarf_select_sections_by_names (optarg))
-		dump_dwarf_section_info = true;
-	    }
-	  else
-	    {
-	      dwarf_select_sections_all ();
-	      dump_dwarf_section_info = true;
-	    }
-	  break;
-	case OPTION_DWARF_DEPTH:
-	  {
-	    char *cp;
-	    dwarf_cutoff_level = strtoul (optarg, & cp, 0);
-	  }
-	  break;
-	case OPTION_DWARF_START:
-	  {
-	    char *cp;
-	    dwarf_start_die = strtoul (optarg, & cp, 0);
-	    suppress_bfd_header = 1;
-	  }
-	  break;
-	case OPTION_DWARF_CHECK:
-	  dwarf_check = true;
-	  break;
-#ifdef ENABLE_LIBCTF
-	case OPTION_CTF:
-	  dump_ctf_section_info = true;
-	  if (optarg)
-	    dump_ctf_section_name = xstrdup (optarg);
-	  seenflag = true;
-	  break;
-	case OPTION_CTF_PARENT:
-	  dump_ctf_parent_name = xstrdup (optarg);
-	  break;
-	case OPTION_CTF_PARENT_SECTION:
-	  dump_ctf_parent_section_name = xstrdup (optarg);
-	  break;
-#endif
-	case OPTION_SFRAME:
-	  dump_sframe_section_info = true;
-	  if (optarg)
-	    dump_sframe_section_name = xstrdup (optarg);
-	  seenflag = true;
-	  break;
-	case 'G':
-	  dump_stab_section_info = true;
-	  seenflag = true;
-	  break;
-	case 's':
-	  dump_section_contents = true;
-	  seenflag = true;
-	  break;
-	case 'r':
-	  dump_reloc_info = true;
-	  seenflag = true;
-	  break;
-	case 'R':
-	  dump_dynamic_reloc_info = true;
-	  seenflag = true;
-	  break;
-	case 'a':
-	  dump_ar_hdrs = true;
-	  seenflag = true;
-	  break;
-	case 'h':
-	  dump_section_headers = true;
-	  seenflag = true;
-	  break;
-	case 'v':
-	case 'V':
-	  show_version = true;
-	  seenflag = true;
-	  break;
-
-	case 'U':
-	  if (streq (optarg, "default") || streq (optarg, "d"))
-	    unicode_display = unicode_default;
-	  else if (streq (optarg, "locale") || streq (optarg, "l"))
-	    unicode_display = unicode_locale;
-	  else if (streq (optarg, "escape") || streq (optarg, "e"))
-	    unicode_display = unicode_escape;
-	  else if (streq (optarg, "invalid") || streq (optarg, "i"))
-	    unicode_display = unicode_invalid;
-	  else if (streq (optarg, "hex") || streq (optarg, "x"))
-	    unicode_display = unicode_hex;
-	  else if (streq (optarg, "highlight") || streq (optarg, "h"))
-	    unicode_display = unicode_highlight;
-	  else
-	    fatal (_("invalid argument to -U/--unicode: %s"), optarg);
-	  break;
-
-	case 'H':
-	  usage (stdout, 0);
-	  /* No need to set seenflag or to break - usage() does not return.  */
-	default:
-	  usage (stderr, 1);
-	}
-    }
-
-  if (disassembler_color == on_if_terminal_output)
-    disassembler_color = isatty (1) ? on : off;
-
-  if (show_version)
-    print_version ("objdump");
-
-  if (!seenflag)
-    usage (stderr, 2);
-
-  dump_any_debugging = (dump_debugging
-			|| dump_dwarf_section_info
-			|| process_links
-			|| with_source_code);
-
-  if (formats_info)
-    exit_status = display_info ();
-  else
-    {
-      if (optind == argc)
-	display_file ("a.out", target);
-      else
-	for (; optind < argc;)
-	  {
-	    display_file (argv[optind], target);
-	    optind++;
-	  }
-    }
-
-  free_only_list ();
-  free (dump_ctf_section_name);
-  free (dump_ctf_parent_name);
-  free ((void *) source_comment);
-  free (dump_ctf_parent_section_name);
-
-  return exit_status;
+void disass(const char* filename, const char* mcpu)
+{
+  d.run(filename, mcpu);
 }
+
