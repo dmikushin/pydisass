@@ -34,8 +34,7 @@ add_library(sframe STATIC
 	sframe/sframe-error.c)
 target_include_directories(sframe PRIVATE
 	include
-	sframe
-	ctf)
+	sframe)
 target_compile_definitions(sframe PRIVATE
 	HAVE_CONFIG_H)
 target_compile_options(sframe PRIVATE
@@ -46,47 +45,7 @@ target_compile_options(sframe PRIVATE
 	-Wstrict-prototypes
 	-Wmissing-prototypes)
 
-add_library(ctf
-	ctf/ctf-archive.c
-	ctf/ctf-dump.c
-	ctf/ctf-create.c
-	ctf/ctf-decl.c
-	ctf/ctf-error.c
-	ctf/ctf-hash.c
-	ctf/ctf-labels.c
-	ctf/ctf-dedup.c
-	ctf/ctf-link.c
-	ctf/ctf-lookup.c
-	ctf/ctf-open.c
-	ctf/ctf-serialize.c
-	ctf/ctf-sha1.c
-	ctf/ctf-string.c
-	ctf/ctf-subr.c
-	ctf/ctf-types.c
-	ctf/ctf-util.c
-	ctf/ctf-open-bfd.c)
-target_include_directories(ctf PRIVATE
-	include
-	ctf
-	bfd)
-target_compile_definitions(ctf PRIVATE
-	HAVE_CONFIG_H
-	_GNU_SOURCE
-	NOBFD=0)
-target_compile_options(ctf PRIVATE
-	-std=gnu99
-	-W
-	-Wall
-	-Wno-narrowing
-	-Wwrite-strings
-	-Wmissing-format-attribute
-	-Wstrict-prototypes
-	-Wmissing-prototypes
-	-Wold-style-definition
-	-pedantic
-	-Wno-long-long)
-
-add_library(bfd
+add_library(bfd STATIC
 	bfd/archive.c
 	bfd/archures.c
 	bfd/bfd.c
@@ -132,7 +91,6 @@ add_library(bfd
 	bfd/archive64.c)
 target_include_directories(bfd PRIVATE
 	include
-	ctf
 	bfd)
 target_compile_definitions(bfd PRIVATE
 	HAVE_CONFIG_H
@@ -272,7 +230,6 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 	-Werror)
 target_link_libraries(${PROJECT_NAME}
 	opcodes
-	ctf
 	bfd
 	liberty
 	sframe)

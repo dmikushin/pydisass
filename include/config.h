@@ -22,11 +22,11 @@
 #define ENABLE_CHECKING 1
 
 /* Handle .ctf type-info sections */
-#define ENABLE_LIBCTF 1
+/* #undef ENABLE_LIBCTF 1 */
 
 /* Define to 1 if translation of program messages to the user's native
    language is requested. */
-#define ENABLE_NLS 1
+/* #undef ENABLE_NLS 1 */
 
 /* Suffix used for executables, if any. */
 #define EXECUTABLE_SUFFIX ""
