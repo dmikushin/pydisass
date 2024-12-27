@@ -1,6 +1,8 @@
 #include <cstdio>
+#include <iostream>
+#include <string>
 
-void disass(const char* filename, const char* mcpu);
+std::string disass(const char* filename, const char* mcpu);
 
 int main(int argc, char* argv[])
 {
@@ -12,7 +14,8 @@ int main(int argc, char* argv[])
 
 	const char* mcpu = argv[1];
 	const char* filename = argv[2];
-	disass(filename, mcpu);
+	const std::string result = disass(filename, mcpu);
+	std::cout << result;
 	
 	return 0;
 }

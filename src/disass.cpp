@@ -83,6 +83,11 @@ extern "C"
 
 } // extern "C"
 
+#include "streamprintf.h"
+#include <sstream>
+
+static std::stringstream ssdisass;
+
 /* Exit status.  */
 static int exit_status = 0;
 
@@ -2747,13 +2752,13 @@ disassemble_bytes (struct disassemble_info *inf,
 	     and the file offset from where we resume dumping.  */
 	  if (display_file_offsets
 	      && octets / opb < stop_offset - addr_offset)
-	    printf (_("\t... (skipping %lu zeroes, "
+	    oprintf (ssdisass, _("\t... (skipping %lu zeroes, "
 		      "resuming at file offset: 0x%lx)\n"),
 		    (unsigned long) (octets / opb),
 		    (unsigned long) (section->filepos
 				     + addr_offset + octets / opb));
 	  else
-	    printf ("\t...\n");
+	    oprintf (ssdisass, "\t...\n");
 	}
       else
 	{
@@ -2765,7 +2770,7 @@ disassemble_bytes (struct disassemble_info *inf,
 	    show_line (aux->abfd, section, addr_offset);
 
 	  if (no_addresses)
-	    printf ("\t");
+	    oprintf (ssdisass, "\t");
 	  else if (!prefix_addresses)
 	    {
 	      char *s;
@@ -2775,14 +2780,14 @@ disassemble_bytes (struct disassemble_info *inf,
 		*s = ' ';
 	      if (*s == '\0')
 		*--s = '0';
-	      printf ("%s:\t", buf + skip_addr_chars);
+	      oprintf (ssdisass, "%s:\t", buf + skip_addr_chars);
 	    }
 	  else
 	    {
 	      aux->require_sec = true;
 	      objdump_print_address (section->vma + addr_offset, inf);
 	      aux->require_sec = false;
-	      putchar (' ');
+	      oprintf (ssdisass, " ");
 	    }
 
 	  print_jump_visualisation (section->vma + addr_offset,
@@ -2883,7 +2888,7 @@ disassemble_bytes (struct disassemble_info *inf,
 	      if (insn_size < (int) opb)
 		{
 		  if (sfile.pos)
-		    printf ("%s\n", sfile.buffer);
+		    oprintf (ssdisass, "%s\n", sfile.buffer);
 		  if (insn_size >= 0)
 		    {
 		      non_fatal (_("disassemble_fn returned length %d"),
@@ -2938,15 +2943,15 @@ disassemble_bytes (struct disassemble_info *inf,
 		      if (inf->display_endian == BFD_ENDIAN_LITTLE)
 			{
 			  for (k = bpc; k-- != 0; )
-			    printf ("%02x", (unsigned) data[j + k]);
+			    oprintf (ssdisass, "%02x", (unsigned) data[j + k]);
 			}
 		      else
 			{
 			  for (k = 0; k < bpc; k++)
-			    printf ("%02x", (unsigned) data[j + k]);
+			    oprintf (ssdisass, "%02x", (unsigned) data[j + k]);
 			}
 		    }
-		  putchar (' ');
+		  oprintf (ssdisass, " ");
 		}
 
 	      for (; pb < octets_per_line; pb += bpc)
@@ -2954,21 +2959,21 @@ disassemble_bytes (struct disassemble_info *inf,
 		  unsigned int k;
 
 		  for (k = 0; k < bpc; k++)
-		    printf ("  ");
-		  putchar (' ');
+		    oprintf (ssdisass, "  ");
+		  oprintf (ssdisass, " ");
 		}
 
 	      /* Separate raw data from instruction by extra space.  */
 	      if (insns)
-		putchar ('\t');
+		oprintf (ssdisass, "\t");
 	      else
-		printf ("    ");
+		oprintf (ssdisass, "    ");
 	    }
 
 	  if (! insns)
-	    printf ("%s", buf);
+	    oprintf (ssdisass, "%s", buf);
 	  else if (sfile.pos)
-	    printf ("%s", sfile.buffer);
+	    oprintf (ssdisass, "%s", sfile.buffer);
 
 	  if (prefix_addresses
 	      ? show_raw_insn > 0
@@ -2979,11 +2984,11 @@ disassemble_bytes (struct disassemble_info *inf,
 		  bfd_vma j;
 		  char *s;
 
-		  putchar ('\n');
+		  oprintf (ssdisass, "\n");
 		  j = addr_offset * opb + pb;
 
 		  if (no_addresses)
-		    printf ("\t");
+		    oprintf (ssdisass, "\t");
 		  else
 		    {
 		      bfd_sprintf_vma (aux->abfd, buf, section->vma + j / opb);
@@ -2991,7 +2996,7 @@ disassemble_bytes (struct disassemble_info *inf,
 			*s = ' ';
 		      if (*s == '\0')
 			*--s = '0';
-		      printf ("%s:\t", buf + skip_addr_chars);
+		      oprintf (ssdisass, "%s:\t", buf + skip_addr_chars);
 		    }
 
 		  print_jump_visualisation (section->vma + j / opb,
@@ -3011,21 +3016,21 @@ disassemble_bytes (struct disassemble_info *inf,
 			  if (inf->display_endian == BFD_ENDIAN_LITTLE)
 			    {
 			      for (k = bpc; k-- != 0; )
-				printf ("%02x", (unsigned) data[j + k]);
+				oprintf (ssdisass, "%02x", (unsigned) data[j + k]);
 			    }
 			  else
 			    {
 			      for (k = 0; k < bpc; k++)
-				printf ("%02x", (unsigned) data[j + k]);
+				oprintf (ssdisass, "%02x", (unsigned) data[j + k]);
 			    }
 			}
-		      putchar (' ');
+		      oprintf (ssdisass, " ");
 		    }
 		}
 	    }
 
 	  if (!wide_output)
-	    putchar ('\n');
+	    oprintf (ssdisass, "\n");
 	  else
 	    need_nl = true;
 	}
@@ -3040,26 +3045,26 @@ disassemble_bytes (struct disassemble_info *inf,
 	      q = *relpp;
 
 	      if (wide_output)
-		putchar ('\t');
+		oprintf (ssdisass, "\t");
 	      else
-		printf ("\t\t\t");
+		oprintf (ssdisass, "\t\t\t");
 
 	      if (!no_addresses)
 		{
 		  objdump_print_value (section->vma - rel_offset + q->address,
 				       inf, true);
-		  printf (": ");
+		  oprintf (ssdisass, ": ");
 		}
 
 	      if (q->howto == NULL)
-		printf ("*unknown*\t");
+		oprintf (ssdisass, "*unknown*\t");
 	      else if (q->howto->name)
-		printf ("%s\t", q->howto->name);
+		oprintf (ssdisass, "%s\t", q->howto->name);
 	      else
-		printf ("%d\t", q->howto->type);
+		oprintf (ssdisass, "%d\t", q->howto->type);
 
 	      if (q->sym_ptr_ptr == NULL || *q->sym_ptr_ptr == NULL)
-		printf ("*unknown*");
+		oprintf (ssdisass, "*unknown*");
 	      else
 		{
 		  const char *sym_name;
@@ -3075,7 +3080,7 @@ disassemble_bytes (struct disassemble_info *inf,
 		      sym_name = bfd_section_name (sym_sec);
 		      if (sym_name == NULL || *sym_name == '\0')
 			sym_name = "*unknown*";
-		      printf ("%s", sanitize_string (sym_name));
+		      oprintf (ssdisass, "%s", sanitize_string (sym_name));
 		    }
 		}
 
@@ -3084,22 +3089,22 @@ disassemble_bytes (struct disassemble_info *inf,
 		  bfd_vma addend = q->addend;
 		  if ((bfd_signed_vma) addend < 0)
 		    {
-		      printf ("-0x");
+		      oprintf (ssdisass, "-0x");
 		      addend = -addend;
 		    }
 		  else
-		    printf ("+0x");
+		    oprintf (ssdisass, "+0x");
 		  objdump_print_value (addend, inf, true);
 		}
 
-	      printf ("\n");
+	      oprintf (ssdisass, "\n");
 	      need_nl = false;
 	    }
 	  ++relpp;
 	}
 
       if (need_nl)
-	printf ("\n");
+	oprintf (ssdisass, "\n");
 
       addr_offset += octets / opb;
     }
@@ -3370,32 +3375,6 @@ disassemble_section (bfd *abfd, asection *section, void *inf)
 
 	      free (alloc);
 	    }
-	}
-
-      if (! prefix_addresses && do_print)
-	{
-	  pinfo->fprintf_func (pinfo->stream, "\n");
-	  objdump_print_addr_with_sym (abfd, section, sym, addr,
-				       pinfo, false);
-	  pinfo->fprintf_func (pinfo->stream, ":\n");
-
-	  if (sym != NULL && show_all_symbols)
-	    {
-	      for (++place; place < sorted_symcount; place++)
-		{
-		  sym = sorted_syms[place];
-		  
-		  if (bfd_asymbol_value (sym) != addr)
-		    break;
-		  if (! pinfo->symbol_is_valid (sym, pinfo))
-		    continue;
-		  if (strcmp (bfd_section_name (sym->section), bfd_section_name (section)) != 0)
-		    break;
-
-		  objdump_print_addr_with_sym (abfd, section, sym, addr, pinfo, false);
-		  pinfo->fprintf_func (pinfo->stream, ":\n");
-		}
-	    }	   
 	}
 
       if (sym != NULL && bfd_asymbol_value (sym) > addr)
@@ -3895,17 +3874,19 @@ public:
     disassemble_all = true;
   }
 
-  void run(const char* filename, const char* mcpu)
+  std::string run(const char* filename, const char* mcpu)
   {
     machine = mcpu;
+    ssdisass.clear();
     display_file (filename, "binary");
+    return ssdisass.str();
   }
 };
 
 static Disassembler d;
 
-void disass(const char* filename, const char* mcpu)
+std::string disass(const char* filename, const char* mcpu)
 {
-  d.run(filename, mcpu);
+  return d.run(filename, mcpu);
 }
 
