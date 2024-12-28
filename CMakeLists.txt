@@ -7,6 +7,20 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 find_package(ZLIB REQUIRED)
 find_package(ZSTD REQUIRED)
 
+add_subdirectory(ThirdParty/json EXCLUDE_FROM_ALL)
+add_subdirectory(ThirdParty/pybind11 EXCLUDE_FROM_ALL)
+add_subdirectory(ThirdParty/pybind11_json EXCLUDE_FROM_ALL)
+
+if (UNIX)
+# Use $ORIGIN or @loader_path, which allow to pick up
+# dependencies relative to the executable folder
+if (APPLE)
+set(CMAKE_INSTALL_RPATH "@loader_path")
+else()
+set(CMAKE_INSTALL_RPATH "$ORIGIN")
+endif()
+endif()
+
 add_library(opcodes STATIC
 	opcodes/dis-buf.c
 	opcodes/disassemble.c
@@ -195,9 +209,9 @@ add_library(${PROJECT_NAME} SHARED
 	src/version.c
 	src/filemode.c
 	src/elfcomm.c)
-target_include_directories(${PROJECT_NAME} PRIVATE
-	include
-	bfd)
+add_library(${PROJECT_NAME}::${PROJECT_NAME} ALIAS ${PROJECT_NAME})
+target_include_directories(${PROJECT_NAME} PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/include)
+target_include_directories(${PROJECT_NAME} PRIVATE bfd)
 target_compile_definitions(${PROJECT_NAME} PRIVATE
 	HAVE_CONFIG_H
 	LOCALEDIR="/usr/local/share/locale"
@@ -214,7 +228,11 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
 	opcodes
 	bfd
-	liberty)
+	liberty
+	nlohmann_json::nlohmann_json)
+
+pybind11_add_module(py${PROJECT_NAME}_native src/python/disass.cpp)
+target_link_libraries(py${PROJECT_NAME}_native PRIVATE ${PROJECT_NAME} pybind11_json)
 
 add_executable(test_${PROJECT_NAME} src/test/test_${PROJECT_NAME}.cpp)
 target_link_libraries(test_${PROJECT_NAME} ${PROJECT_NAME})
@@ -222,5 +240,12 @@ target_link_libraries(test_${PROJECT_NAME} ${PROJECT_NAME})
 enable_testing()
 
 add_test(NAME test_${PROJECT_NAME}
-	COMMAND test_${PROJECT_NAME} arm926ej-s ${CMAKE_CURRENT_SOURCE_DIR}/CyU3PDmaThreadEntry.bin
+	COMMAND test_${PROJECT_NAME} arm926ej-s ${CMAKE_CURRENT_SOURCE_DIR}/examples/CyU3PDmaThreadEntry.bin
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+
+add_test(NAME test_py${PROJECT_NAME}
+	COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}:${CMAKE_CURRENT_BINARY_DIR} python3 ${CMAKE_CURRENT_SOURCE_DIR}/examples/example.py
+	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/examples)
+
+install(TARGETS ${PROJECT_NAME} py${PROJECT_NAME}_native DESTINATION .)
+install(FILES include/disass/disass.h DESTINATION include/disass)

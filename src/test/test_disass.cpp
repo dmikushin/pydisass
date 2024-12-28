@@ -1,10 +1,9 @@
+#include "disass/disass.h"
+
 #include <cstdio>
 #include <iostream>
 #include <string>
-#include <nlohmann/json.hpp>
 #include <fstream>
-
-nlohmann::json disass(const std::string& binary, const std::string& mcpu, uint64_t offset);
 
 int main(int argc, char* argv[])
 {
