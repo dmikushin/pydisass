@@ -185,7 +185,6 @@ target_compile_options(liberty PRIVATE
 
 add_library(${PROJECT_NAME} SHARED
 	src/${PROJECT_NAME}.cpp
-	src/dwarf.c
 	src/prdbg.c
 	src/demanguse.c
 	src/rddbg.c

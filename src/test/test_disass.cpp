@@ -2,8 +2,9 @@
 #include <iostream>
 #include <string>
 #include <nlohmann/json.hpp>
+#include <fstream>
 
-nlohmann::json disass(const char* filename, const char* mcpu, int offset);
+nlohmann::json disass(const std::string& binary, const std::string& mcpu, uint64_t offset);
 
 int main(int argc, char* argv[])
 {
@@ -15,7 +16,18 @@ int main(int argc, char* argv[])
 
 	const char* mcpu = argv[1];
 	const char* filename = argv[2];
-	auto result = disass(filename, mcpu, 0);
+
+    std::ifstream file(filename, std::ios::binary);
+	if (!file.is_open())
+	{
+		fprintf(stderr, "Cannot open file %s for reading\n", filename);
+		exit(EXIT_FAILURE);
+	}
+
+    std::string binary((std::istreambuf_iterator<char>(file)),
+      std::istreambuf_iterator<char>());
+
+	auto result = disass(binary, mcpu, 0);
 	std::cout << result.dump(4) << std::endl;
 	
 	return 0;

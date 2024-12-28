@@ -58,7 +58,6 @@ extern "C"
 #include "bucomm.h"
 #include "elfcomm.h"
 #include "demanguse.h"
-#include "dwarf.h"
 #include "getopt.h"
 #include "safe-ctype.h"
 #include "dis-asm.h"
@@ -87,6 +86,7 @@ extern "C"
 
 #include <iostream>
 #include <sstream>
+#include <stdint.h>
 #include <string>
 #include <nlohmann/json.hpp>
 
@@ -97,7 +97,6 @@ static int exit_status = 0;
 
 /* The following variables are set based on arguments passed on the
    command line.  */
-static int dump_section_contents;	/* -s */
 static int dump_reloc_info;		/* -r */
 static int dump_dynamic_reloc_info;	/* -R */
 static int no_addresses;		/* --no-addresses */
@@ -125,7 +124,6 @@ static bool visualize_jumps = false;	/* --visualize-jumps.  */
 static bool color_output = false;	/* --visualize-jumps=color.  */
 static bool extended_color_output = false; /* --visualize-jumps=extended-color.  */
 static int show_all_symbols;            /* --show-all-symbols.  */
-static bool decompressed_dumps = false; /* -Z, --decompress.  */
 
 static enum color_selection
   {
@@ -140,7 +138,6 @@ static enum color_selection
   off;
 #endif
 
-static int dump_any_debugging;
 static int demangle_flags = DMGL_ANSI | DMGL_PARAMS;
 
 /* This is reset to false each time we enter the disassembler, and set true
@@ -1055,7 +1052,7 @@ display_extra_syms (long place,
       if (! inf->symbol_is_valid (sym, inf))
 	continue;
 
-      if (first && ! do_wide)
+      if (first)
 	inf->fprintf_styled_func (inf->stream, dis_style_immediate, ",\n\t<");
       else  
 	inf->fprintf_styled_func (inf->stream, dis_style_immediate, ", <");
@@ -2640,7 +2637,7 @@ static void
 disassemble_bytes (struct disassemble_info *inf,
 		   disassembler_ftype disassemble_fn,
 		   bool insns,
-		   bfd_byte *data,
+		   const bfd_byte *data,
 		   bfd_vma start_offset,
 		   bfd_vma stop_offset,
 		   bfd_vma rel_offset,
@@ -3119,15 +3116,14 @@ disassemble_bytes (struct disassemble_info *inf,
 }
 
 static void
-disassemble_section (bfd *abfd, asection *section, void *inf)
+disassemble_section (
+  const bfd_byte *data, bfd_size_type datasize,
+  bfd *abfd, asection *section, struct disassemble_info *pinfo)
 {
   const struct elf_backend_data *bed;
   bfd_vma sign_adjust = 0;
-  struct disassemble_info *pinfo = (struct disassemble_info *) inf;
   struct objdump_disasm_info *paux;
   unsigned int opb = pinfo->octets_per_byte;
-  bfd_byte *data = NULL;
-  bfd_size_type datasize = 0;
   arelent **rel_pp = NULL;
   arelent **rel_ppstart = NULL;
   arelent **rel_ppend;
@@ -3159,7 +3155,6 @@ disassemble_section (bfd *abfd, asection *section, void *inf)
   else if (!process_section_p (section))
     return;
 
-  datasize = bfd_section_size (section);
   if (datasize == 0)
     return;
 
@@ -3230,15 +3225,7 @@ disassemble_section (bfd *abfd, asection *section, void *inf)
     }
   rel_ppend = PTR_ADD (rel_pp, rel_count);
 
-  if (!bfd_malloc_and_get_section (abfd, section, &data))
-    {
-      non_fatal (_("Reading section %s failed because: %s"),
-		 section->name, bfd_errmsg (bfd_get_error ()));
-      free (rel_ppstart);
-      return;
-    }
-
-  pinfo->buffer = data;
+  pinfo->buffer = (bfd_byte*) data;
   pinfo->buffer_vma = section->vma;
   pinfo->buffer_length = datasize;
   pinfo->section = section;
@@ -3251,8 +3238,7 @@ disassemble_section (bfd *abfd, asection *section, void *inf)
   /* Find the nearest symbol forwards from our current position.  */
   paux->require_sec = true;
   sym = (asymbol *) find_symbol_for_address (section->vma + addr_offset,
-					     (struct disassemble_info *) inf,
-					     &place);
+					     pinfo, &place);
   paux->require_sec = false;
 
   /* PR 9774: If the target used signed addresses then we must make
@@ -3475,14 +3461,13 @@ disassemble_section (bfd *abfd, asection *section, void *inf)
       sym = nextsym;
     }
 
-  free (data);
   free (rel_ppstart);
 }
 
 /* Disassemble the contents of an object file.  */
 
 static void
-disassemble_data (bfd *abfd)
+disassemble_data (const bfd_byte *data, bfd_size_type datasize, bfd *abfd)
 {
   struct disassemble_info disasm_info;
   struct objdump_disasm_info aux;
@@ -3608,251 +3593,45 @@ disassemble_data (bfd *abfd)
   disasm_info.symtab = sorted_syms;
   disasm_info.symtab_size = sorted_symcount;
 
-  bfd_map_over_sections (abfd, disassemble_section, & disasm_info);
+  bfd_symbol symbol;
+  memset(&symbol, 0, sizeof(symbol));
+  asection section;
+  memset(&section, 0, sizeof(section));
+  
+  symbol.the_bfd = abfd;
+  symbol.name = ".data";
+  symbol.flags = 256;
+  symbol.section = &section;
+  
+  section.name = ".data";
+  section.id = 16;
+  section.flags = 291;
+  section.size = datasize;
+  section.owner = abfd;
+  section.symbol = &symbol;
+
+  disassemble_section (
+    data, datasize,
+    abfd, &section, &disasm_info);
 
   free (disasm_info.dynrelbuf);
   disasm_info.dynrelbuf = NULL;
   free (sorted_syms);
   disassemble_free_target (&disasm_info);
 }
-
-static bool
-load_specific_debug_section (enum dwarf_section_display_enum debug,
-			     asection *sec, void *file)
-{
-  struct dwarf_section *section = &debug_displays [debug].section;
-  bfd *abfd = (bfd *) file;
-  bfd_byte *contents;
-  bfd_size_type amt;
-  size_t alloced;
-  bool ret;
 
-  if (section->start != NULL)
-    {
-      /* If it is already loaded, do nothing.  */
-      if (streq (section->filename, bfd_get_filename (abfd)))
-	return true;
-      free (section->start);
-      section->start = NULL;
-    }
-
-  section->filename = bfd_get_filename (abfd);
-  section->reloc_info = NULL;
-  section->num_relocs = 0;
-  section->address = bfd_section_vma (sec);
-  section->size = bfd_section_size (sec);
-  /* PR 24360: On 32-bit hosts sizeof (size_t) < sizeof (bfd_size_type). */
-  alloced = amt = section->size + 1;
-  if (alloced != amt
-      || alloced == 0
-      || bfd_section_size_insane (abfd, sec))
-    {
-      printf (_("\nSection '%s' has an invalid size: %#" PRIx64 ".\n"),
-	      sanitize_string (section->name),
-	      section->size);
-      free_debug_section (debug);
-      return false;
-    }
-
-  ret = false;
-  if ((sec->flags & SEC_HAS_CONTENTS) != 0)
-    {
-      section->start = contents = (bfd_byte *) xmalloc (alloced);
-      /* Ensure any string section has a terminating NUL.  */
-      section->start[section->size] = 0;
-
-      if ((abfd->flags & (EXEC_P | DYNAMIC)) == 0
-	  && debug_displays [debug].relocate)
-	{
-	  ret = bfd_simple_get_relocated_section_contents (abfd,
-							   sec,
-							   section->start,
-							   syms) != NULL;
-	  if (ret)
-	    {
-	      long reloc_size = bfd_get_reloc_upper_bound (abfd, sec);
-
-	      if (reloc_size > 0)
-		{
-		  long reloc_count;
-		  arelent **relocs;
-
-		  relocs = (arelent **) xmalloc (reloc_size);
-
-		  reloc_count = bfd_canonicalize_reloc (abfd, sec, relocs, syms);
-		  if (reloc_count <= 0)
-		    free (relocs);
-		  else
-		    {
-		      section->reloc_info = relocs;
-		      section->num_relocs = reloc_count;
-		    }
-		}
-	    }
-	}
-      else
-	ret = bfd_get_full_section_contents (abfd, sec, &contents);
-    }
-
-  if (!ret)
-    {
-      printf (_("\nCan't get contents for section '%s'.\n"),
-	      sanitize_string (section->name));
-      free_debug_section (debug);
-      return false;
-    }
-
-  return true;
-}
-
-bool
-reloc_at (struct dwarf_section * dsec, uint64_t offset)
-{
-  arelent ** relocs;
-  arelent * rp;
-
-  if (dsec == NULL || dsec->reloc_info == NULL)
-    return false;
-
-  relocs = (arelent **) dsec->reloc_info;
-
-  for (; (rp = * relocs) != NULL; ++ relocs)
-    if (rp->address == offset)
-      return true;
-
-  return false;
-}
-
-bool
-load_debug_section (enum dwarf_section_display_enum debug, void *file)
-{
-  struct dwarf_section *section = &debug_displays [debug].section;
-  bfd *abfd = (bfd *) file;
-  asection *sec;
-  const char *name;
-
-  if (!dump_any_debugging)
-    return false;
-
-  /* If it is already loaded, do nothing.  */
-  if (section->start != NULL)
-    {
-      if (streq (section->filename, bfd_get_filename (abfd)))
-	return true;
-    }
-  /* Locate the debug section.  */
-  name = section->uncompressed_name;
-  sec = bfd_get_section_by_name (abfd, name);
-  if (sec == NULL)
-    {
-      name = section->compressed_name;
-      if (*name)
-	sec = bfd_get_section_by_name (abfd, name);
-    }
-  if (sec == NULL)
-    {
-      name = section->xcoff_name;
-      if (*name)
-	sec = bfd_get_section_by_name (abfd, name);
-    }
-  if (sec == NULL)
-    return false;
-
-  section->name = name;
-  return load_specific_debug_section (debug, sec, file);
-}
-
-void
-free_debug_section (enum dwarf_section_display_enum debug)
-{
-  struct dwarf_section *section = &debug_displays [debug].section;
-
-  free ((char *) section->start);
-  section->start = NULL;
-  section->address = 0;
-  section->size = 0;
-  free ((char*) section->reloc_info);
-  section->reloc_info = NULL;
-  section->num_relocs= 0;
-}
-
-void
-close_debug_file (void * file)
-{
-  bfd * abfd = (bfd *) file;
-
-  bfd_close (abfd);
-}
-
-void *
-open_debug_file (const char * pathname)
-{
-  bfd * data;
-
-  data = bfd_openr (pathname, NULL);
-  if (data == NULL)
-    return NULL;
-
-  /* Decompress sections unless dumping the section contents.  */
-  if (!dump_section_contents || decompressed_dumps)
-    data->flags |= BFD_DECOMPRESS;
-
-  if (! bfd_check_format (data, bfd_object))
-    return NULL;
-
-  return data;
-}
-
-/* Stabs entries use a 12 byte format:
-     4 byte string table index
-     1 byte stab type
-     1 byte stab other field
-     2 byte stab desc field
-     4 byte stab value
-   FIXME: This will have to change for a 64 bit object format.  */
-
-#define STRDXOFF  (0)
-#define TYPEOFF   (4)
-#define OTHEROFF  (5)
-#define DESCOFF   (6)
-#define VALOFF    (8)
-#define STABSIZE (12)
-
-typedef struct
-{
-  const char * section_name;
-  const char * string_section_name;
-  unsigned string_offset;
-}
-stab_section_names;
+extern const bfd_target binary_vec;
 
 /* Dump selected contents of ABFD.  */
 
 static void
-display_file (const char *filename, const char *target)
+display_file (const char* data, size_t datasize)
 {
-  bfd *file;
+  bfd abfd;
+  memset(&abfd, 0, sizeof(abfd));
+  abfd.xvec = &binary_vec;
 
-  if (get_file_size (filename) < 1)
-    {
-      exit_status = 1;
-      return;
-    }
-
-  file = bfd_openr (filename, target);
-  if (file == NULL)
-    {
-      my_bfd_nonfatal (filename);
-      return;
-    }
-
-  char **matching;
-  if (bfd_check_format_matches (file, bfd_object, &matching))
-    {
-      disassemble_data (file);
-    }
-
-  bfd_close (file);
+  disassemble_data ((const bfd_byte *) data, (bfd_size_type) datasize, &abfd);
 }
 
 class Disassembler
@@ -3878,28 +3657,29 @@ public:
     disassemble_all = true;
   }
 
-  std::string run(const char* filename, const char* mcpu)
+  std::string run(const std::string& binary, const std::string& mcpu)
   {
-    machine = mcpu;
+    machine = mcpu.c_str();
     ssdisass.clear();
-    display_file (filename, "binary");
+        
+    display_file (binary.data(), binary.size());
     return ssdisass.str();
   }
 };
 
 static Disassembler d;
 
-nlohmann::json disass(const char* filename, const char* mcpu, int offset) {
+nlohmann::json disass(const std::string& binary, const std::string& mcpu, uint64_t offset) {
     nlohmann::json instructions;
-    std::istringstream stream(d.run(filename, mcpu));
+    std::istringstream stream(d.run(binary, mcpu));
     std::string line;
 
     while (std::getline(stream, line)) {
         if (line.empty() || line[0] != ' ') continue;
 
         std::istringstream lineStream(line);
-        std::string addressStr, binary, mnemonic, op_str;
-        lineStream >> addressStr >> binary >> mnemonic;
+        std::string addressStr, binstr, mnemonic, op_str;
+        lineStream >> addressStr >> binstr >> mnemonic;
         std::getline(lineStream, op_str);
         op_str = op_str.empty() ? "" : op_str.substr(1); // Remove leading tab
 
@@ -3912,12 +3692,12 @@ nlohmann::json disass(const char* filename, const char* mcpu, int offset) {
         }
 
         int address = std::stoi(addressStr, nullptr, 16) + offset;
-        int size = binary.length() / 2;
+        int size = binstr.length() / 2;
 
         if (constant == "")
         {
 		    instructions[std::to_string(address)] = {
-		        {"binary", binary},
+		        {"binary", binstr},
 		        {"mnemonic", mnemonic},
 		        {"op_str", op_str},
 		        {"size", size}
@@ -3926,7 +3706,7 @@ nlohmann::json disass(const char* filename, const char* mcpu, int offset) {
 		else
         {
 		    instructions[std::to_string(address)] = {
-		        {"binary", binary},
+		        {"binary", binstr},
 		        {"mnemonic", mnemonic},
 		        {"op_str", op_str},
 		        {"constant", constant},
