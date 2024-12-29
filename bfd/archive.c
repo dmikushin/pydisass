@@ -203,7 +203,7 @@ struct ar_cache
 void
 _bfd_ar_spacepad (char *p, size_t n, const char *fmt, long val)
 {
-  char buf[20];
+  char buf[21];
   size_t len;
 
   snprintf (buf, sizeof (buf), fmt, val);
