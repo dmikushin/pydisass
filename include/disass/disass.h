@@ -3,6 +3,8 @@
 
 #include <nlohmann/json.hpp>
 
-nlohmann::json disass(const std::string& binary, const std::string& mcpu, uint64_t offset);
+std::string disass(const std::string& binary, const std::string& mcpu, uint64_t offset);
+
+nlohmann::json disass_json(const std::string& binary, const std::string& mcpu, uint64_t offset);
 
 #endif // DISASS_H

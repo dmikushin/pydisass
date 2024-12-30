@@ -88,6 +88,7 @@ extern "C"
 #include <sstream>
 #include <stdint.h>
 #include <string>
+#include <unordered_map>
 #include <nlohmann/json.hpp>
 
 static std::stringstream ssdisass;
@@ -3657,7 +3658,7 @@ public:
     disassemble_all = true;
   }
 
-  std::string run(const std::string& binary, const std::string& mcpu)
+  std::string run(const std::string& binary, const std::string& mcpu, [[maybe_unused]] uint64_t offset)
   {
     machine = mcpu.c_str();
     ssdisass.clear();
@@ -3669,9 +3670,15 @@ public:
 
 static Disassembler d;
 
-nlohmann::json disass(const std::string& binary, const std::string& mcpu, uint64_t offset) {
-    nlohmann::json instructions;
-    std::istringstream stream(d.run(binary, mcpu));
+std::string disass(const std::string& binary, const std::string& mcpu, uint64_t offset)
+{
+	// TODO Use offset (start address)
+	return d.run(binary, mcpu, offset);
+}
+
+nlohmann::json disass_json(const std::string& binary, const std::string& mcpu, uint64_t offset) {
+    std::unordered_map<std::string, nlohmann::json> instructionsMap;
+    std::istringstream stream(d.run(binary, mcpu, offset));
     std::string line;
 
     while (std::getline(stream, line)) {
@@ -3683,38 +3690,30 @@ nlohmann::json disass(const std::string& binary, const std::string& mcpu, uint64
         std::getline(lineStream, op_str);
         op_str = op_str.empty() ? "" : op_str.substr(1); // Remove leading tab
 
-        // Check if op_str ends with '@ constant'
         std::string constant;
         size_t atPos = op_str.find_last_of('@');
         if (atPos != std::string::npos) {
             constant = op_str.substr(atPos + 1);
-            op_str = op_str.substr(0, atPos - 1); // Remove '@ constant'
+            op_str = op_str.substr(0, atPos - 1); // Remove "@ constant"
         }
 
         int address = std::stoi(addressStr, nullptr, 16) + offset;
         int size = binstr.length() / 2;
 
-        if (constant == "")
-        {
-		    instructions[std::to_string(address)] = {
-		        {"binary", binstr},
-		        {"mnemonic", mnemonic},
-		        {"op_str", op_str},
-		        {"size", size}
-		    };
-		}
-		else
-        {
-		    instructions[std::to_string(address)] = {
-		        {"binary", binstr},
-		        {"mnemonic", mnemonic},
-		        {"op_str", op_str},
-		        {"constant", constant},
-		        {"size", size},
-		    };
-		}
+        nlohmann::json instruction = {
+            {"binary", binstr},
+            {"mnemonic", mnemonic},
+            {"op_str", op_str},
+            {"size", size}
+        };
+
+        if (!constant.empty()) {
+            instruction["constant"] = constant;
+        }
+
+        instructionsMap[std::to_string(address)] = instruction;
     }
 
-    return instructions;
+    return nlohmann::json(instructionsMap);
 }
 

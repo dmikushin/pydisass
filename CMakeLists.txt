@@ -9,7 +9,6 @@ find_package(ZSTD REQUIRED)
 
 add_subdirectory(ThirdParty/json EXCLUDE_FROM_ALL)
 add_subdirectory(ThirdParty/pybind11 EXCLUDE_FROM_ALL)
-add_subdirectory(ThirdParty/pybind11_json EXCLUDE_FROM_ALL)
 
 if (UNIX)
 # Use $ORIGIN or @loader_path, which allow to pick up
@@ -232,7 +231,7 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
 	nlohmann_json::nlohmann_json)
 
 pybind11_add_module(py${PROJECT_NAME}_native src/python/disass.cpp)
-target_link_libraries(py${PROJECT_NAME}_native PRIVATE ${PROJECT_NAME} pybind11_json)
+target_link_libraries(py${PROJECT_NAME}_native PRIVATE ${PROJECT_NAME})
 
 add_executable(test_${PROJECT_NAME} src/test/test_${PROJECT_NAME}.cpp)
 target_link_libraries(test_${PROJECT_NAME} ${PROJECT_NAME})
