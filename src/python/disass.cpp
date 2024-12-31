@@ -48,15 +48,16 @@ py::dict pydisass(const std::string& binary, const std::string& mcpu, uint64_t o
             std::vector<py::dict> operands;
             std::istringstream opStream(op_str);
             std::string operand;
+
             while (std::getline(opStream, operand, ',')) {
                 operand = trim(operand);
                 py::dict operandDict;
                 operandDict["text"] = operand;
-
+                
                 // Check if the operand is an immediate value
-                if (operand.length() > 2 && operand.find("0x") != std::string::npos) {
+                if (operand.length() > 2 && operand[0] == '0' && operand[1] == 'x') {
                     py::dict immDict;
-                    unsigned long intValue = std::stoul(operand, nullptr, 16);
+                    uint64_t intValue = std::stoull(operand, nullptr, 16);
                     uint32_t immValue = static_cast<uint32_t>(intValue);
                     immDict["imm"] = immValue;
                     operandDict["value"] = immDict;
@@ -64,7 +65,7 @@ py::dict pydisass(const std::string& binary, const std::string& mcpu, uint64_t o
                 else if (operand.length() > 1 && operand[0] == '#') {
                     operand[0] = ' ';
                     py::dict immDict;
-                    unsigned long intValue = std::stoul(operand, nullptr, 10);
+                    uint64_t intValue = std::stoull(operand, nullptr, 10);
                     uint32_t immValue = static_cast<uint32_t>(intValue);
                     immDict["imm"] = immValue;
                     operandDict["value"] = immDict;
