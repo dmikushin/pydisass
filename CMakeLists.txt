@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.5)
+cmake_minimum_required(VERSION 3.10)
 
 project(disass LANGUAGES C CXX)
 
@@ -242,9 +242,13 @@ add_test(NAME test_${PROJECT_NAME}
 	COMMAND test_${PROJECT_NAME} arm926ej-s ${CMAKE_CURRENT_SOURCE_DIR}/examples/CyU3PDmaThreadEntry.bin
 	WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
 
-add_test(NAME test_py${PROJECT_NAME}
+add_test(NAME example_py${PROJECT_NAME}
 	COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}:${CMAKE_CURRENT_BINARY_DIR} python3 ${CMAKE_CURRENT_SOURCE_DIR}/examples/example.py
 	WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/examples)
+
+add_test(NAME test_py${PROJECT_NAME}
+	COMMAND ${CMAKE_COMMAND} -E env PYTHONPATH=${CMAKE_CURRENT_SOURCE_DIR}:${CMAKE_CURRENT_BINARY_DIR} python3 ${CMAKE_CURRENT_SOURCE_DIR}/src/python/test/test_py${PROJECT_NAME}.py)
+
 
 install(TARGETS ${PROJECT_NAME} py${PROJECT_NAME}_native DESTINATION .)
 install(FILES include/disass/disass.h DESTINATION include/disass)

@@ -1,11 +1,20 @@
 #include "disass/disass.h"
 
 #include <pybind11/pybind11.h>
-#include <unordered_map>
+#include <pybind11/stl.h>
+#include <sstream>
+#include <vector>
 
 namespace py = pybind11;
 
-py::dict pydisass(const std::string& binary, const std::string& mcpu, uint64_t offset) {
+inline std::string trim(std::string& str)
+{
+    str.erase(str.find_last_not_of(' ')+1);         //suffixing spaces
+    str.erase(0, str.find_first_not_of(' '));       //prefixing spaces
+    return str;
+}
+
+py::dict pydisass(const std::string& binary, const std::string& mcpu, uint64_t offset, bool detail) {
     py::dict instructionsDict;
     std::istringstream stream(disass(binary, mcpu, offset));
     std::string line;
@@ -34,6 +43,37 @@ py::dict pydisass(const std::string& binary, const std::string& mcpu, uint64_t o
         instruction["mnemonic"] = mnemonic;
         instruction["op_str"] = op_str;
         instruction["size"] = size;
+
+        if (detail) {
+            std::vector<py::dict> operands;
+            std::istringstream opStream(op_str);
+            std::string operand;
+            while (std::getline(opStream, operand, ',')) {
+                operand = trim(operand);
+                py::dict operandDict;
+                operandDict["text"] = operand;
+
+                // Check if the operand is an immediate value
+                if (operand.length() > 2 && operand.find("0x") != std::string::npos) {
+                    py::dict immDict;
+                    unsigned long intValue = std::stoul(operand, nullptr, 16);
+                    uint32_t immValue = static_cast<uint32_t>(intValue);
+                    immDict["imm"] = immValue;
+                    operandDict["value"] = immDict;
+                }
+                else if (operand.length() > 1 && operand[0] == '#') {
+                    operand[0] = ' ';
+                    py::dict immDict;
+                    unsigned long intValue = std::stoul(operand, nullptr, 10);
+                    uint32_t immValue = static_cast<uint32_t>(intValue);
+                    immDict["imm"] = immValue;
+                    operandDict["value"] = immDict;
+                }
+
+                operands.push_back(operandDict);
+            }
+            instruction["operands"] = operands;
+        }
 
         if (!constant.empty()) {
             instruction["constant"] = constant;
