@@ -3661,7 +3661,9 @@ public:
   std::string run(const std::string& binary, const std::string& mcpu, [[maybe_unused]] uint64_t offset)
   {
     machine = mcpu.c_str();
-    ssdisass.clear();
+    
+    // Reset stream by swapping it with a default constructed stringstream
+    std::stringstream().swap(ssdisass);
         
     display_file (binary.data(), binary.size());
     return ssdisass.str();
