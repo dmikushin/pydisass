@@ -186,9 +186,6 @@ static enum bfd_endian endian = BFD_ENDIAN_UNKNOWN;
 /* The symbol table.  */
 static asymbol **syms;
 
-/* Number of symbols in `syms'.  */
-static long symcount = 0;
-
 /* The sorted symbol table.  */
 static asymbol **sorted_syms;
 
@@ -197,13 +194,6 @@ static long sorted_symcount = 0;
 
 /* The dynamic symbol table.  */
 static asymbol **dynsyms;
-
-/* The synthetic symbol table.  */
-static asymbol *synthsyms;
-static long synthcount = 0;
-
-/* Number of symbols in `dynsyms'.  */
-static long dynsymcount = 0;
 
 /* Handlers for -P/--private.  */
 static const struct objdump_private_desc * const objdump_private_vectors[] =
@@ -440,43 +430,6 @@ process_section_p (asection * section)
       }
 
   return false;
-}
-
-/* Some symbol names are significant and should be kept in the
-   table of sorted symbol names, even if they are marked as
-   debugging/section symbols.  */
-
-static bool
-is_significant_symbol_name (const char * name)
-{
-  return startswith (name, ".plt") || startswith (name, ".got");
-}
-
-/* Filter out (in place) symbols that are useless for disassembly.
-   COUNT is the number of elements in SYMBOLS.
-   Return the number of useful symbols.  */
-
-static long
-remove_useless_symbols (asymbol **symbols, long count)
-{
-  asymbol **in_ptr = symbols, **out_ptr = symbols;
-
-  while (--count >= 0)
-    {
-      asymbol *sym = *in_ptr++;
-
-      if (sym->name == NULL || sym->name[0] == '\0')
-	continue;
-      if ((sym->flags & (BSF_DEBUGGING | BSF_SECTION_SYM))
-	  && ! is_significant_symbol_name (sym->name))
-	continue;
-      if (bfd_is_und_section (sym->section)
-	  || bfd_is_com_section (sym->section))
-	continue;
-
-      *out_ptr++ = sym;
-    }
-  return out_ptr - symbols;
 }
 
 static const asection *compare_section;
@@ -3472,31 +3425,11 @@ disassemble_data (const bfd_byte *data, bfd_size_type datasize, bfd *abfd)
 {
   struct disassemble_info disasm_info;
   struct objdump_disasm_info aux;
-  long i;
 
   print_files = NULL;
   prev_functionname = NULL;
   prev_line = -1;
   prev_discriminator = 0;
-
-  /* We make a copy of syms to sort.  We don't want to sort syms
-     because that will screw up the relocs.  */
-  sorted_symcount = symcount ? symcount : dynsymcount;
-  sorted_syms = (asymbol **) xmalloc ((sorted_symcount + synthcount)
-				      * sizeof (asymbol *));
-  if (sorted_symcount != 0)
-    {
-      memcpy (sorted_syms, symcount ? syms : dynsyms,
-	      sorted_symcount * sizeof (asymbol *));
-
-      sorted_symcount = remove_useless_symbols (sorted_syms, sorted_symcount);
-    }
-
-  for (i = 0; i < synthcount; ++i)
-    {
-      sorted_syms[sorted_symcount] = synthsyms + i;
-      ++sorted_symcount;
-    }
 
   init_disassemble_info (&disasm_info, stdout, (fprintf_ftype) fprintf,
 			 (fprintf_styled_ftype) fprintf_styled);
@@ -3543,7 +3476,6 @@ disassemble_data (const bfd_byte *data, bfd_size_type datasize, bfd *abfd)
       non_fatal (_("can't disassemble for architecture %s\n"),
 		 bfd_printable_arch_mach (bfd_get_arch (abfd), 0));
       exit_status = 1;
-      free (sorted_syms);
       return;
     }
 
@@ -3591,7 +3523,7 @@ disassemble_data (const bfd_byte *data, bfd_size_type datasize, bfd *abfd)
 	       sizeof (arelent *), compare_relocs);
     }
 
-  disasm_info.symtab = sorted_syms;
+  disasm_info.symtab = nullptr;
   disasm_info.symtab_size = sorted_symcount;
 
   bfd_symbol symbol;
@@ -3617,7 +3549,6 @@ disassemble_data (const bfd_byte *data, bfd_size_type datasize, bfd *abfd)
 
   free (disasm_info.dynrelbuf);
   disasm_info.dynrelbuf = NULL;
-  free (sorted_syms);
   disassemble_free_target (&disasm_info);
 }
 
