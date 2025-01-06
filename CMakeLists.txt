@@ -227,8 +227,9 @@ target_compile_options(${PROJECT_NAME} PRIVATE
 target_link_libraries(${PROJECT_NAME} PRIVATE
 	opcodes
 	bfd
-	liberty
-	nlohmann_json::nlohmann_json)
+	liberty)
+target_link_libraries(${PROJECT_NAME} PUBLIC
+    nlohmann_json::nlohmann_json)
 
 pybind11_add_module(py${PROJECT_NAME}_native src/python/disass.cpp)
 target_link_libraries(py${PROJECT_NAME}_native PRIVATE ${PROJECT_NAME})
