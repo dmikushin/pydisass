@@ -3566,11 +3566,13 @@ display_file (const char* data, size_t datasize)
   disassemble_data ((const bfd_byte *) data, (bfd_size_type) datasize, &abfd);
 }
 
-class Disassembler
+namespace {
+
+class BinutilsDisassembler
 {
 public:
 
-  Disassembler()
+  BinutilsDisassembler()
   {
     setlocale (LC_CTYPE, "");
 
@@ -3601,17 +3603,19 @@ public:
   }
 };
 
-static Disassembler d;
+} // namespace
 
 std::string disass(const std::string& binary, const std::string& mcpu, uint64_t offset)
 {
+    static BinutilsDisassembler d;
+
 	// TODO Use offset (start address)
 	return d.run(binary, mcpu, offset);
 }
 
 nlohmann::json disass_json(const std::string& binary, const std::string& mcpu, uint64_t offset) {
     std::unordered_map<std::string, nlohmann::json> instructionsMap;
-    std::istringstream stream(d.run(binary, mcpu, offset));
+    std::istringstream stream(disass(binary, mcpu, offset));
     std::string line;
 
     while (std::getline(stream, line)) {
