@@ -72,10 +72,6 @@ extern "C"
 #include <sys/mman.h>
 #endif
 
-#ifdef HAVE_LIBDEBUGINFOD
-#include <elfutils/debuginfod.h>
-#endif
-
 /* Internal headers for the ELF .stab-dump code - sorry.  */
 #define	BYTES_IN_WORD	32
 #include "aout/aout64.h"
@@ -1147,120 +1143,6 @@ static struct print_file_list *print_files;
 
 #define SHOW_PRECEDING_CONTEXT_LINES (5)
 
-#if HAVE_LIBDEBUGINFOD
-/* Return a hex string represention of the build-id.  */
-
-unsigned char *
-get_build_id (void * data)
-{
-  unsigned i;
-  char * build_id_str;
-  bfd * abfd = (bfd *) data;
-  const struct bfd_build_id * build_id;
-
-  build_id = abfd->build_id;
-  if (build_id == NULL)
-    return NULL;
-
-  build_id_str = malloc (build_id->size * 2 + 1);
-  if (build_id_str == NULL)
-    return NULL;
-
-  for (i = 0; i < build_id->size; i++)
-    sprintf (build_id_str + (i * 2), "%02x", build_id->data[i]);
-  build_id_str[build_id->size * 2] = '\0';
-
-  return (unsigned char *) build_id_str;
-}
-
-/* Search for a separate debug file matching ABFD's build-id.  */
-
-static bfd *
-find_separate_debug (const bfd * abfd)
-{
-  const struct bfd_build_id * build_id = abfd->build_id;
-  separate_info * i = first_separate_info;
-
-  if (build_id == NULL || i == NULL)
-    return NULL;
-
-  while (i != NULL)
-    {
-      const bfd * i_bfd = (bfd *) i->handle;
-
-      if (abfd != NULL && i_bfd->build_id != NULL)
-	{
-	  const unsigned char * data = i_bfd->build_id->data;
-	  size_t size = i_bfd->build_id->size;
-
-	  if (size == build_id->size
-	      && memcmp (data, build_id->data, size) == 0)
-	    return (bfd *) i->handle;
-	}
-
-      i = i->next;
-    }
-
-  return NULL;
-}
-
-/* Search for a separate debug file matching ABFD's .gnu_debugaltlink
-    build-id.  */
-
-static bfd *
-find_alt_debug (const bfd * abfd)
-{
-  size_t namelen;
-  size_t id_len;
-  const char * name;
-  struct dwarf_section * section;
-  const struct bfd_build_id * build_id = abfd->build_id;
-  separate_info * i = first_separate_info;
-
-  if (i == NULL
-      || build_id == NULL
-      || !load_debug_section (gnu_debugaltlink, (void *) abfd))
-    return NULL;
-
-  section = &debug_displays[gnu_debugaltlink].section;
-  if (section == NULL)
-    return NULL;
-
-  name = (const char *) section->start;
-  namelen = strnlen (name, section->size) + 1;
-  if (namelen == 1)
-    return NULL;
-  if (namelen >= section->size)
-    return NULL;
-
-  id_len = section->size - namelen;
-  if (id_len < 0x14)
-    return NULL;
-
-  /* Compare the .gnu_debugaltlink build-id with the build-ids of the
-     known separate_info files.  */
-  while (i != NULL)
-    {
-      const bfd * i_bfd = (bfd *) i->handle;
-
-      if (i_bfd != NULL && i_bfd->build_id != NULL)
-	{
-	  const unsigned char * data = i_bfd->build_id->data;
-	  size_t size = i_bfd->build_id->size;
-
-	  if (id_len == size
-	      && memcmp (section->start + namelen, data, size) == 0)
-	    return (bfd *) i->handle;
-	}
-
-      i = i->next;
-    }
-
-  return NULL;
-}
-
-#endif /* HAVE_LIBDEBUGINFOD */
-
 /* Reads the contents of file FN into memory.  Returns a pointer to the buffer.
    Also returns the size of the buffer in SIZE_RETURN and a filled out
    stat structure in FST_RETURN.  Returns NULL upon failure.  */
@@ -1283,25 +1165,6 @@ slurp_file (const char *   fn,
     return NULL;
 
   fd = open (fn, O_RDONLY | O_BINARY);
-
-#if HAVE_LIBDEBUGINFOD
-  if (fd < 0 && use_debuginfod && fn[0] == '/' && abfd != NULL)
-    {
-      unsigned char *build_id = get_build_id (abfd);
-
-      if (build_id)
-	{
-	  debuginfod_client *client = debuginfod_begin ();
-
-	  if (client)
-	    {
-	      fd = debuginfod_find_source (client, build_id, 0, fn, NULL);
-	      debuginfod_end (client);
-	    }
-	  free (build_id);
-	}
-    }
-#endif
 
   if (fd < 0)
     return NULL;
