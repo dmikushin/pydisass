@@ -78,6 +78,7 @@ extern "C"
 
 } // extern "C"
 
+#include "disass/disass.h"
 #include "streamprintf.h"
 
 #include <iostream>
@@ -86,6 +87,8 @@ extern "C"
 #include <string>
 #include <unordered_map>
 #include <nlohmann/json.hpp>
+
+using namespace disass;
 
 static std::stringstream ssdisass;
 
@@ -3468,7 +3471,7 @@ public:
 
 } // namespace
 
-std::string disass(const std::string& binary, const std::string& mcpu, uint64_t offset)
+std::string disass::disass(const std::string& binary, const std::string& mcpu, uint64_t offset)
 {
     static BinutilsDisassembler d;
 
@@ -3476,7 +3479,14 @@ std::string disass(const std::string& binary, const std::string& mcpu, uint64_t 
 	return d.run(binary, mcpu, offset);
 }
 
-nlohmann::json disass_json(const std::string& binary, const std::string& mcpu, uint64_t offset) {
+inline std::string trim(std::string& str)
+{
+    str.erase(str.find_last_not_of(' ')+1);         //suffixing spaces
+    str.erase(0, str.find_first_not_of(' '));       //prefixing spaces
+    return str;
+}
+
+nlohmann::json disass::disass_json(const std::string& binary, const std::string& mcpu, uint64_t offset) {
     std::unordered_map<std::string, nlohmann::json> instructionsMap;
     std::istringstream stream(disass(binary, mcpu, offset));
     std::string line;
@@ -3516,4 +3526,91 @@ nlohmann::json disass_json(const std::string& binary, const std::string& mcpu, u
 
     return nlohmann::json(instructionsMap);
 }
+
+AssemblyParser::AssemblyParser(
+    const std::string& binary, uint64_t offset_, bool& detail_,
+    const std::string& cpu_model, [[maybe_unused]] const std::string& triple) :
+    offset(offset_), detail(detail_)
+{
+    // At this time, we disassemble the entire binary at once,
+    // and get a single string for the whole binary. Later we
+    // may change this into line-by-line retrieval, but currently
+    // there is no need for that. However, we design the APIs to
+    // be capable of this already now.
+    stream = std::istringstream(disass(binary, cpu_model, offset));
+}
+    
+bool AssemblyParser::next_instruction(Instruction& instruction)
+{
+    bool exists = false;
+    std::string line;
+    while (!exists && std::getline(stream, line)) {
+        if (line.empty() || line[0] != ' ') continue;
+
+        exists = true;
+        std::istringstream lineStream(line);
+        std::string addressStr, binstr, mnemonic, op_str;
+        lineStream >> addressStr >> binstr >> mnemonic;
+        std::getline(lineStream, op_str);
+        op_str = op_str.empty() ? "" : op_str.substr(1); // Remove leading tab
+
+        std::string constant;
+        size_t atPos = op_str.find_last_of('@');
+        if (atPos != std::string::npos) {
+            constant = op_str.substr(atPos + 1);
+            op_str = op_str.substr(0, atPos - 1); // Remove "@ constant"
+        }
+
+        int address = std::stoi(addressStr, nullptr, 16) + offset;
+        int size = binstr.length() / 2;
+
+        instruction.address = address;
+        instruction.binary = binstr;
+        instruction.mnemonic = mnemonic;
+        instruction.op_str = op_str;
+        instruction.size = size;
+
+        if (detail) {
+            std::vector<Operand> operands;
+            std::istringstream opStream(op_str);
+            std::string op;
+
+            while (std::getline(opStream, op, ',')) {
+                op = trim(op);
+                Operand operand;
+                operand.text = op;
+                
+                // Check if the operand is an immediate value
+                int base = 0;
+                if (op.length() > 2 && op[0] == '0' && op[1] == 'x')
+                    base = 16;
+                else if (op.length() > 1 && op[0] == '#') {
+                    op[0] = ' ';
+                    base = 10;
+                }
+                
+                if (base != 0) {
+                    uint64_t intValue = std::stoull(op, nullptr, base);
+                    uint32_t immValue = static_cast<uint32_t>(intValue);
+                    Value value;
+                    value.imm = immValue;
+                    operand.value = value;
+                }
+
+                operands.push_back(operand);
+            }
+
+            instruction.operands = operands;
+        }
+
+        if (!constant.empty()) {
+            instruction.constant = constant;
+        }
+    }
+    
+    return exists;
+}
+
+InstructionIterator::InstructionIterator(AssemblyParser* parser_) :
+    parser(parser_), hasNext(parser_ ? parser_->next_instruction(currentInstruction) : false) {}
 
