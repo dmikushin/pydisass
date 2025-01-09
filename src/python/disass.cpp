@@ -1,5 +1,6 @@
 #include "disass/disass.h"
 
+#include <iterator>
 #include <pybind11/pybind11.h>
 #include <pybind11/stl.h>
 #include <sstream>
@@ -18,12 +19,12 @@ class AssemblyParser
 {
     std::istringstream stream;
     uint64_t offset;
-    bool detail;
+    bool& detail;
 
 public :
 
     AssemblyParser(
-        const std::string& binary, uint64_t offset, bool detail = false,
+        const std::string& binary, uint64_t offset, bool& detail,
         const std::string& cpu_model = "arm926ej-s", const std::string& triple = "arm-none-eabi") :
         offset(offset), detail(detail)
     {
@@ -108,14 +109,72 @@ public :
     }
 };
 
+class InstructionIterator {
+    AssemblyParser* parser;
+    Instruction currentInstruction;
+    bool hasNext;
+
+public:
+    using iterator_category = std::input_iterator_tag;
+    using value_type = Instruction;
+    using difference_type = std::ptrdiff_t;
+    using pointer = Instruction*;
+    using reference = Instruction&;
+
+    InstructionIterator(AssemblyParser* parser) : parser(parser), hasNext(parser? parser->next_instruction(currentInstruction) : false) {}
+
+    InstructionIterator& operator++() {
+        hasNext = parser->next_instruction(currentInstruction);
+        return *this;
+    }
+
+    bool operator!=(const InstructionIterator& other) const {
+        return hasNext != other.hasNext;
+    }
+
+    const Instruction& operator*() const {
+        return currentInstruction;
+    }
+};
+
+class IterableAssemblyParser : public AssemblyParser {
+public:
+    using AssemblyParser::AssemblyParser;
+
+    InstructionIterator begin() {
+        return InstructionIterator(this);
+    }
+
+    InstructionIterator end() {
+        return InstructionIterator(nullptr);
+    }
+};
+
+class Disassembler {
+    const std::string cpu_model;
+    const std::string triple;
+
+public:
+    bool detail = false;
+
+    Disassembler(const std::string& cpu_model = "arm926ej-s", const std::string& triple = "arm-none-eabi") :
+        cpu_model(cpu_model), triple(triple)
+    { }
+
+    IterableAssemblyParser disasm(const std::string& binary, uint64_t offset)
+    {
+        return IterableAssemblyParser(binary, offset, detail, cpu_model, triple);
+    }
+};
+
 py::dict pydisass(const std::string& binary, const std::string& mcpu, uint64_t offset, bool detail) {
     py::dict instructionsDict;
     std::istringstream stream(disass(binary, mcpu, offset));
     std::string line;
 
-    AssemblyParser parser(binary, offset, detail, mcpu);
-    Instruction i;
-    while (parser.next_instruction(i)) {
+    Disassembler md(mcpu);
+    md.detail = detail;
+    for (const auto& i : md.disasm(binary, offset)) {
         py::dict instruction;
         instruction["binary"] = i.binary;
         instruction["mnemonic"] = i.mnemonic;
