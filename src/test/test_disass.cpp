@@ -26,7 +26,8 @@ int main(int argc, char* argv[])
     std::string binary((std::istreambuf_iterator<char>(file)),
       std::istreambuf_iterator<char>());
 
-	auto result = disass::disass_json(binary, mcpu, 0);
+    bool detail = true;
+	auto result = disass::disass_json(binary, mcpu, 0, detail);
 	std::cout << result.dump(4) << std::endl;
 	
 	return 0;

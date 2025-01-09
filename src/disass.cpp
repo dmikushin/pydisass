@@ -3486,42 +3486,24 @@ inline std::string trim(std::string& str)
     return str;
 }
 
-nlohmann::json disass::disass_json(const std::string& binary, const std::string& mcpu, uint64_t offset) {
+nlohmann::json disass::disass_json(const std::string& binary, const std::string& mcpu, uint64_t offset, bool detail) {
     std::unordered_map<std::string, nlohmann::json> instructionsMap;
-    std::istringstream stream(disass(binary, mcpu, offset));
-    std::string line;
+    AssemblyParser parser(binary, offset, detail, mcpu, "");
 
-    while (std::getline(stream, line)) {
-        if (line.empty() || line[0] != ' ') continue;
-
-        std::istringstream lineStream(line);
-        std::string addressStr, binstr, mnemonic, op_str;
-        lineStream >> addressStr >> binstr >> mnemonic;
-        std::getline(lineStream, op_str);
-        op_str = op_str.empty() ? "" : op_str.substr(1); // Remove leading tab
-
-        std::string constant;
-        size_t atPos = op_str.find_last_of('@');
-        if (atPos != std::string::npos) {
-            constant = op_str.substr(atPos + 1);
-            op_str = op_str.substr(0, atPos - 1); // Remove "@ constant"
-        }
-
-        int address = std::stoi(addressStr, nullptr, 16) + offset;
-        int size = binstr.length() / 2;
-
-        nlohmann::json instruction = {
-            {"binary", binstr},
-            {"mnemonic", mnemonic},
-            {"op_str", op_str},
-            {"size", size}
+    Instruction instruction;
+    while (parser.next_instruction(instruction)) {
+        nlohmann::json instructionJson = {
+            {"binary", instruction.binary},
+            {"mnemonic", instruction.mnemonic},
+            {"op_str", instruction.op_str},
+            {"size", instruction.size}
         };
 
-        if (!constant.empty()) {
-            instruction["constant"] = constant;
+        if (instruction.constant) {
+            instructionJson["constant"] = *instruction.constant;
         }
 
-        instructionsMap[std::to_string(address)] = instruction;
+        instructionsMap[std::to_string(instruction.address)] = instructionJson;
     }
 
     return nlohmann::json(instructionsMap);
