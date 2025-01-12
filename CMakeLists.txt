@@ -34,6 +34,7 @@ target_compile_definitions(opcodes PRIVATE
 	HAVE_CONFIG_H
 	ARCH_arm)
 target_compile_options(opcodes PRIVATE
+    -fvisibility=hidden
 	-W
 	-Wall
 	-Wstrict-prototypes
@@ -103,6 +104,7 @@ target_compile_definitions(bfd PRIVATE
 	HAVE_elf32_le_vec
 	HAVE_elf32_be_vec)
 target_compile_options(bfd PRIVATE
+    -fvisibility=hidden
 	-W
 	-Wall
 	-Wstrict-prototypes
@@ -187,6 +189,7 @@ target_compile_definitions(liberty PRIVATE
 	HAVE_CONFIG_H
 	_GNU_SOURCE)
 target_compile_options(liberty PRIVATE
+    -fvisibility=hidden
 	-W
 	-Wall
 	-Wwrite-strings
@@ -217,6 +220,7 @@ target_compile_definitions(${PROJECT_NAME} PRIVATE
 	bin_dummy_emulation=bin_vanilla_emulation
 	OBJDUMP_PRIVATE_VECTORS=)
 target_compile_options(${PROJECT_NAME} PRIVATE
+    -fvisibility=hidden
 	-W
 	-Wall
 	-Wstrict-prototypes

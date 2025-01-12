@@ -7,11 +7,17 @@
 #include <string>
 #include <vector>
 
+#ifdef disass_EXPORTS
+#define DISASS_API __attribute__((visibility("default")))
+#else
+#define DISASS_API
+#endif // disass_EXPORTS
+
 namespace disass {
 
-std::string disass(const std::string& binary, const std::string& mcpu, uint64_t offset);
+DISASS_API std::string disass(const std::string& binary, const std::string& mcpu, uint64_t offset);
 
-nlohmann::json disass_json(const std::string& binary, const std::string& mcpu, uint64_t offset, bool detail = false);
+DISASS_API nlohmann::json disass_json(const std::string& binary, const std::string& mcpu, uint64_t offset, bool detail = false);
 
 struct Value {
     int imm; // 32-bit integer
@@ -34,7 +40,7 @@ struct Instruction {
     friend std::ostream& operator<<(std::ostream& os, const Instruction& instr);
 };
 
-class AssemblyParser
+class DISASS_API AssemblyParser
 {
     std::istringstream stream;
     uint64_t offset;
@@ -49,7 +55,7 @@ public :
     bool next_instruction(Instruction& instruction);
 };
 
-class InstructionIterator {
+class DISASS_API InstructionIterator {
     AssemblyParser* parser;
     Instruction currentInstruction;
     bool hasNext;
@@ -77,7 +83,7 @@ public:
     }
 };
 
-class IterableAssemblyParser : public AssemblyParser {
+class DISASS_API IterableAssemblyParser : public AssemblyParser {
 public:
     using AssemblyParser::AssemblyParser;
 
@@ -90,7 +96,7 @@ public:
     }
 };
 
-class Disassembler {
+class DISASS_API Disassembler {
     const std::string cpu_model;
     const std::string triple;
 
