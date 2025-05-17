@@ -3457,14 +3457,17 @@ public:
     disassemble_all = true;
   }
 
-  std::string run(const std::string& binary, const std::string& mcpu, [[maybe_unused]] uint64_t offset)
+  std::string run(const std::string& binary, const std::string& mcpu, uint64_t offset)
   {
     machine = mcpu.c_str();
-    
+
+    // Set the start_address to the specified offset to properly handle branch targets
+    start_address = offset;
+
     // Reset stream by swapping it with a default constructed stringstream
     std::stringstream().swap(ssdisass);
         
-    display_file (binary.data(), binary.size());
+    display_file (binary.data() - offset, binary.size() + offset);
     return ssdisass.str();
   }
 };
@@ -3475,8 +3478,7 @@ std::string disass::disass(const std::string& binary, const std::string& mcpu, u
 {
     static BinutilsDisassembler d;
 
-	// TODO Use offset (start address)
-	return d.run(binary, mcpu, offset);
+    return d.run(binary, mcpu, offset);
 }
 
 inline std::string trim(std::string& str)
@@ -3543,7 +3545,7 @@ bool AssemblyParser::next_instruction(Instruction& instruction)
             op_str = op_str.substr(0, atPos - 1); // Remove "@ constant"
         }
 
-        int address = std::stoi(addressStr, nullptr, 16) + offset;
+        int address = std::stoi(addressStr, nullptr, 16);
         int size = binstr.length() / 2;
 
         instruction.address = address;
