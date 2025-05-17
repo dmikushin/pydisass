@@ -45,7 +45,7 @@ class Disassembler:
                     binary=instr['binary'],
                     size=instr['size'],
                     mnemonic=instr['mnemonic'],
-                    op_str=instr['op_str'],
+                    op_str=instr['op_str'].strip(),
                     operands=operands
                 )
         else:
@@ -56,5 +56,5 @@ class Disassembler:
                     binary=instr['binary'],
                     size=instr['size'],
                     mnemonic=instr['mnemonic'],
-                    op_str=instr['op_str']
+                    op_str=instr['op_str'].strip()
                 )
